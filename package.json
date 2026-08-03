@@ -24,7 +24,7 @@
     "packages-update": "wp-scripts packages-update",
     "env:start": "wp-env start",
     "env:stop": "wp-env stop",
-    "test": "wp-env run tests-cli --env-cwd=wp-content/plugins/post-type-taxonomy-sync -- phpunit -c phpunit.xml.dist",
+    "test": "wp-env run tests-cli --env-cwd=wp-content/plugins/post-type-taxonomy-sync -- vendor/bin/phpunit -c phpunit.xml.dist",
     "update-pot": "wp-env run cli wp i18n make-pot wp-content/plugins/post-type-taxonomy-sync wp-content/plugins/post-type-taxonomy-sync/languages/viget-post-type-taxonomy-sync.pot --exclude=src,build,node_modules,tests,bin",
     "version": "node bin/sync-version.js && git add viget-post-type-taxonomy-sync.php readme.txt",
     "postversion": "git push && git push --tags",
