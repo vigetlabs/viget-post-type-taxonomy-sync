@@ -1,14 +1,14 @@
-.form-table #ptts-mappings-table th {
+.form-table #vgptts-mappings-table th {
 	padding-left: 10px;
 	padding-top: 10px;
 	padding-bottom: 10px;
 }
 
-.ptts-actions-cell .button + .button {
+.vgptts-actions-cell .button + .button {
 	margin-left: 6px;
 }
 
-.ptts-sync-spinner {
+.vgptts-sync-spinner {
 	display: none;
 	width: 16px;
 	height: 16px;
@@ -16,14 +16,15 @@
 	border: 2px solid #c3c4c7;
 	border-top-color: #2271b1;
 	border-radius: 50%;
-	animation: ptts-spin 0.7s linear infinite;
+	animation: vgptts-spin 0.7s linear infinite;
 }
 
-.ptts-sync-spinner.ptts-sync-spinner--active {
+.vgptts-sync-spinner.vgptts-sync-spinner--active {
 	display: inline-block;
 }
 
-@keyframes ptts-spin {
+@keyframes vgptts-spin {
+
 	to {
 		transform: rotate(360deg);
 	}

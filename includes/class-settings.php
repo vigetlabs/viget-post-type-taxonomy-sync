@@ -1,23 +1,28 @@
 <?php
 /**
- * Settings class for Post Type Taxonomy Sync
+ * Settings class for Viget Post Type Taxonomy Sync
  *
- * @package PostTypeTaxonomySync
+ * @package Viget\PostTypeTaxonomySync
  */
 
-namespace PostTypeTaxonomySync;
+namespace Viget\PostTypeTaxonomySync;
 
+/**
+ * Settings class
+ *
+ * @package Viget\PostTypeTaxonomySync
+ */
 class Settings {
 
 	/**
 	 * Page slug for plugin settings.
 	 */
-	const PAGE_SLUG = 'ptts-settings';
+	const PAGE_SLUG = 'vgptts-settings';
 
 	/**
 	 * Option name for plugin settings.
 	 */
-	const OPTION_NAME = 'ptts_settings';
+	const OPTION_NAME = 'vgptts_settings';
 
 	/**
 	 * Instance of this class.
@@ -54,7 +59,7 @@ class Settings {
 		add_action( 'admin_menu', [ $this, 'register_settings_page' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'register_admin_assets' ] );
-		add_action( 'wp_ajax_ptts_sync_mapping', [ $this, 'handle_ajax_sync_mapping' ] );
+		add_action( 'wp_ajax_vgptts_sync_mapping', [ $this, 'handle_ajax_sync_mapping' ] );
 	}
 
 	/**
@@ -75,20 +80,31 @@ class Settings {
 	 * @return void
 	 */
 	public function register_admin_assets() {
+		$script_asset_file = VGPTTS_PLUGIN_PATH . 'build/admin.asset.php';
+		$script_asset      = file_exists( $script_asset_file )
+			? require $script_asset_file
+			: [
+				'dependencies' => [],
+				'version'      => VGPTTS_PLUGIN_VERSION,
+			];
+
 		wp_register_script(
-			'ptts-mappings-field',
-			PTTS_PLUGIN_URL . 'assets/scripts/mappings-field.js',
-			[],
-			PTTS_PLUGIN_VERSION,
+			'vgptts-mappings-field',
+			VGPTTS_PLUGIN_URL . 'build/admin.js',
+			$script_asset['dependencies'],
+			$script_asset['version'],
 			[ 'in_footer' => true ]
 		);
 
+		$style_path = VGPTTS_PLUGIN_PATH . 'build/admin-style.css';
+
 		wp_register_style(
-			'ptts-admin-styles',
-			PTTS_PLUGIN_URL . 'assets/styles/admin.css',
+			'vgptts-admin-styles',
+			VGPTTS_PLUGIN_URL . 'build/admin-style.css',
 			[],
-			PTTS_PLUGIN_VERSION
+			file_exists( $style_path ) ? filemtime( $style_path ) : VGPTTS_PLUGIN_VERSION
 		);
+		wp_style_add_data( 'vgptts-admin-styles', 'rtl', 'replace' );
 	}
 
 	/**
@@ -108,18 +124,18 @@ class Settings {
 		);
 
 		add_settings_section(
-			'ptts_main_section',
-			esc_html__( 'Sync Mappings', 'post-type-taxonomy-sync' ),
+			'vgptts_main_section',
+			esc_html__( 'Sync Mappings', 'viget-post-type-taxonomy-sync' ),
 			'__return_false',
 			self::PAGE_SLUG
 		);
 
 		add_settings_field(
-			'ptts_mappings_field',
-			esc_html__( 'Mappings', 'post-type-taxonomy-sync' ),
+			'vgptts_mappings_field',
+			esc_html__( 'Mappings', 'viget-post-type-taxonomy-sync' ),
 			[ $this, 'render_mappings_field' ],
 			self::PAGE_SLUG,
-			'ptts_main_section'
+			'vgptts_main_section'
 		);
 	}
 
@@ -151,6 +167,27 @@ class Settings {
 				continue;
 			}
 
+			$post_type_obj = get_post_type_object( $post_type );
+			$tax_obj       = get_taxonomy( $taxonomy );
+
+			$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
+			$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
+
+			if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+				add_settings_error(
+					self::OPTION_NAME,
+					"vgptts_hierarchy_mismatch_{$post_type}_{$taxonomy}",
+					sprintf(
+						/* translators: 1: post type slug, 2: taxonomy slug */
+						__( 'Cannot sync hierarchical post type "%1$s" to non-hierarchical taxonomy "%2$s". Please choose a hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' ),
+						$post_type,
+						$taxonomy
+					),
+					'error'
+				);
+				continue;
+			}
+
 			$sanitized['mappings'][] = [
 				'post_type' => $post_type,
 				'taxonomy'  => $taxonomy,
@@ -167,8 +204,8 @@ class Settings {
 	 */
 	public function register_settings_page() {
 		add_options_page(
-			esc_html__( 'Post Type Taxonomy Sync', 'post-type-taxonomy-sync' ),
-			esc_html__( 'Post/Tax Sync', 'post-type-taxonomy-sync' ),
+			esc_html__( 'Post Type Taxonomy Sync', 'viget-post-type-taxonomy-sync' ),
+			esc_html__( 'Post/Tax Sync', 'viget-post-type-taxonomy-sync' ),
 			'manage_options',
 			self::PAGE_SLUG,
 			[ $this, 'render_settings_page' ]
@@ -185,19 +222,19 @@ class Settings {
 			return;
 		}
 
-		wp_enqueue_script( 'ptts-mappings-field' );
-		wp_enqueue_style( 'ptts-admin-styles' );
+		wp_enqueue_script( 'vgptts-mappings-field' );
+		wp_enqueue_style( 'vgptts-admin-styles' );
 
 		wp_localize_script(
-			'ptts-mappings-field',
-			'pttsMappings',
+			'vgptts-mappings-field',
+			'vgpttsMappings',
 			[
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'ptts_sync_mapping' ),
+				'nonce'   => wp_create_nonce( 'vgptts_sync_mapping' ),
 			]
 		);
 
-		require PTTS_PLUGIN_PATH . 'views/admin/settings.php';
+		require VGPTTS_PLUGIN_PATH . 'views/admin/settings.php';
 	}
 
 	/**
@@ -206,22 +243,37 @@ class Settings {
 	 * @return void
 	 */
 	public function handle_ajax_sync_mapping(): void {
-		check_ajax_referer( 'ptts_sync_mapping', 'nonce' );
+		check_ajax_referer( 'vgptts_sync_mapping', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'post-type-taxonomy-sync' ) ], 403 );
+			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'viget-post-type-taxonomy-sync' ) ], 403 );
 		}
 
 		$post_type = isset( $_POST['post_type'] ) ? sanitize_key( wp_unslash( $_POST['post_type'] ) ) : '';
 		$taxonomy  = isset( $_POST['taxonomy'] ) ? sanitize_key( wp_unslash( $_POST['taxonomy'] ) ) : '';
 
 		if ( ! $post_type || ! $taxonomy || ! post_type_exists( $post_type ) || ! taxonomy_exists( $taxonomy ) ) {
-			wp_send_json_error( [ 'message' => __( 'Invalid post type or taxonomy.', 'post-type-taxonomy-sync' ) ], 400 );
+			wp_send_json_error( [ 'message' => __( 'Invalid post type or taxonomy.', 'viget-post-type-taxonomy-sync' ) ], 400 );
 		}
 
-		PTTS()->sync->sync_terms( $post_type, $taxonomy );
+		$post_type_obj = get_post_type_object( $post_type );
+		$tax_obj       = get_taxonomy( $taxonomy );
 
-		wp_send_json_success( [ 'message' => __( 'Sync completed.', 'post-type-taxonomy-sync' ) ] );
+		$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
+		$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
+
+		if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+			wp_send_json_error(
+				[
+					'message' => __( 'Cannot sync a hierarchical post type to a non-hierarchical taxonomy. Choose a hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' ),
+				],
+				400
+			);
+		}
+
+		vgptts()->sync->sync_terms( $post_type, $taxonomy );
+
+		wp_send_json_success( [ 'message' => __( 'Sync completed.', 'viget-post-type-taxonomy-sync' ) ] );
 	}
 
 	/**
@@ -257,6 +309,6 @@ class Settings {
 			];
 		}
 
-		require PTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
+		require VGPTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
 	}
 }

@@ -2,15 +2,15 @@
 /**
  * Admin class
  *
- * @package PostTypeTaxonomySync
+ * @package Viget\PostTypeTaxonomySync
  */
 
-namespace PostTypeTaxonomySync;
+namespace Viget\PostTypeTaxonomySync;
 
 /**
  * Admin class
  *
- * @package PostTypeTaxonomySync
+ * @package Viget\PostTypeTaxonomySync
  */
 class Admin {
 
@@ -53,6 +53,7 @@ class Admin {
 		}
 
 		add_action( 'admin_menu', [ $this, 'hide_synced_taxonomy_submenus' ], 999 );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_hide_synced_taxonomy_submenu_css' ], 10 );
 		add_action( 'admin_enqueue_scripts', [ $this, 'maybe_hide_synced_taxonomy_metabox_add_new_ui' ] );
 		add_action( 'enqueue_block_editor_assets', [ $this, 'maybe_hide_block_editor_add_term_ui' ] );
 		add_action( 'wp_ajax_add-tag', [ $this, 'maybe_block_ajax_add_tag_for_synced_taxonomy' ], 0 );
@@ -68,7 +69,7 @@ class Admin {
 	 */
 	protected function get_synced_taxonomies_for_post_type( string $post_type ): array {
 		$result   = [];
-		$mappings = PTTS()->get_mappings();
+		$mappings = vgptts()->get_mappings();
 
 		foreach ( $mappings as $mapping ) {
 			$mapped_post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
@@ -96,7 +97,7 @@ class Admin {
 	 * @return bool
 	 */
 	protected function is_synced_taxonomy( string $taxonomy ): bool {
-		return ! empty( PTTS()->get_post_type_for_taxonomy( $taxonomy ) );
+		return ! empty( vgptts()->get_post_type_for_taxonomy( $taxonomy ) );
 	}
 
 	/**
@@ -105,7 +106,7 @@ class Admin {
 	 * @return void
 	 */
 	public function hide_synced_taxonomy_submenus(): void {
-		$mappings = PTTS()->get_mappings();
+		$mappings = vgptts()->get_mappings();
 
 		if ( empty( $mappings ) ) {
 			return;
@@ -150,6 +151,41 @@ class Admin {
 	}
 
 	/**
+	 * Hides synced taxonomy submenu items via CSS (fallback if remove_submenu_page does not apply).
+	 *
+	 * @return void
+	 */
+	public function enqueue_hide_synced_taxonomy_submenu_css(): void {
+		$mappings = vgptts()->get_mappings();
+		if ( empty( $mappings ) ) {
+			return;
+		}
+
+		$rules = [];
+		foreach ( $mappings as $mapping ) {
+			$taxonomy = isset( $mapping['taxonomy'] ) ? sanitize_key( $mapping['taxonomy'] ) : '';
+			if ( ! $taxonomy || ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+			$rules[] = \sprintf(
+				'ul.wp-submenu>li:has(a[href*="edit-tags.php?taxonomy=%s"]){display:none!important;}',
+				esc_attr( $taxonomy )
+			);
+		}
+
+		if ( empty( $rules ) ) {
+			return;
+		}
+
+		$css = implode( "\n", $rules );
+		if ( ! wp_style_is( 'vgptts-hide-submenu', 'registered' ) ) {
+			wp_register_style( 'vgptts-hide-submenu', false, [], VGPTTS_PLUGIN_VERSION );
+		}
+		wp_enqueue_style( 'vgptts-hide-submenu' );
+		wp_add_inline_style( 'vgptts-hide-submenu', $css );
+	}
+
+	/**
 	 * Hide the "Add New Term" UI in taxonomy meta boxes for synced taxonomies.
 	 *
 	 * @param string $hook_suffix Admin page hook.
@@ -184,11 +220,11 @@ class Admin {
 		}
 
 		$css = implode( "\n", $css_parts );
-		if ( ! wp_style_is( 'ptts-admin-inline', 'registered' ) ) {
-			wp_register_style( 'ptts-admin-inline', false, [], PTTS_PLUGIN_VERSION );
+		if ( ! wp_style_is( 'vgptts-admin-inline', 'registered' ) ) {
+			wp_register_style( 'vgptts-admin-inline', false, [], VGPTTS_PLUGIN_VERSION );
 		}
-		wp_enqueue_style( 'ptts-admin-inline' );
-		wp_add_inline_style( 'ptts-admin-inline', $css );
+		wp_enqueue_style( 'vgptts-admin-inline' );
+		wp_add_inline_style( 'vgptts-admin-inline', $css );
 	}
 
 	/**
@@ -210,11 +246,11 @@ class Admin {
 		}
 
 		$css = '.editor-post-taxonomies__hierarchical-terms-add{display:none !important;}';
-		if ( ! wp_style_is( 'ptts-block-editor-inline', 'registered' ) ) {
-			wp_register_style( 'ptts-block-editor-inline', false, [], PTTS_PLUGIN_VERSION );
+		if ( ! wp_style_is( 'vgptts-block-editor-inline', 'registered' ) ) {
+			wp_register_style( 'vgptts-block-editor-inline', false, [], VGPTTS_PLUGIN_VERSION );
 		}
-		wp_enqueue_style( 'ptts-block-editor-inline' );
-		wp_add_inline_style( 'ptts-block-editor-inline', $css );
+		wp_enqueue_style( 'vgptts-block-editor-inline' );
+		wp_add_inline_style( 'vgptts-block-editor-inline', $css );
 	}
 
 	/**
@@ -225,6 +261,7 @@ class Admin {
 	 * @return void
 	 */
 	public function maybe_block_ajax_add_tag_for_synced_taxonomy(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Read-only decision to short-circuit; WP core's own wp_ajax_add_tag() (priority 10) still verifies the nonce before creating anything.
 		$taxonomy = isset( $_POST['taxonomy'] ) ? sanitize_key( wp_unslash( $_POST['taxonomy'] ) ) : '';
 
 		if ( ! $taxonomy || ! taxonomy_exists( $taxonomy ) ) {
@@ -237,7 +274,7 @@ class Admin {
 
 		wp_send_json_error(
 			[
-				'message' => __( 'This taxonomy is managed automatically and does not allow adding new terms here.', 'post-type-taxonomy-sync' ),
+				'message' => __( 'This taxonomy is managed automatically and does not allow adding new terms here.', 'viget-post-type-taxonomy-sync' ),
 			],
 			403
 		);
@@ -249,7 +286,7 @@ class Admin {
 	 * @return void
 	 */
 	public function register_rest_terms_exclude_filter(): void {
-		$mappings = PTTS()->get_mappings();
+		$mappings = vgptts()->get_mappings();
 		if ( empty( $mappings ) ) {
 			return;
 		}
@@ -269,8 +306,8 @@ class Admin {
 	 * When the block editor fetches terms, the request Referer is the post edit URL.
 	 * We parse the post ID and exclude that post's synced term from the response.
 	 *
-	 * @param array             $prepared_args Arguments for the term query.
-	 * @param \WP_REST_Request  $request       REST request.
+	 * @param array            $prepared_args Arguments for the term query.
+	 * @param \WP_REST_Request $request       REST request.
 	 *
 	 * @return array Modified arguments.
 	 */
@@ -285,7 +322,7 @@ class Admin {
 			return $prepared_args;
 		}
 
-		$taxonomy_for_type = PTTS()->get_taxonomy_for_post_type( $post->post_type );
+		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
 		if ( ! $taxonomy_for_type ) {
 			return $prepared_args;
 		}
@@ -300,8 +337,8 @@ class Admin {
 			return $prepared_args;
 		}
 
-		$exclude   = isset( $prepared_args['exclude'] ) ? (array) $prepared_args['exclude'] : [];
-		$exclude[] = $synced_term_id;
+		$exclude                  = isset( $prepared_args['exclude'] ) ? (array) $prepared_args['exclude'] : [];
+		$exclude[]                = $synced_term_id;
 		$prepared_args['exclude'] = array_unique( array_filter( $exclude ) );
 
 		return $prepared_args;
@@ -313,8 +350,8 @@ class Admin {
 	 * @return int|null Post ID or null if not found.
 	 */
 	protected function get_post_id_from_referer(): ?int {
-		$referer = isset( $_SERVER['HTTP_REFERER'] ) ? wp_unslash( $_SERVER['HTTP_REFERER'] ) : '';
-		if ( ! is_string( $referer ) || $referer === '' ) {
+		$referer = isset( $_SERVER['HTTP_REFERER'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '';
+		if ( ! is_string( $referer ) || '' === $referer ) {
 			return null;
 		}
 
@@ -343,7 +380,7 @@ class Admin {
 	 */
 	protected function get_taxonomy_from_rest_route( \WP_REST_Request $request ): string {
 		$route = $request->get_route();
-		if ( ! is_string( $route ) || $route === '' ) {
+		if ( ! is_string( $route ) || '' === $route ) {
 			return '';
 		}
 
@@ -351,7 +388,7 @@ class Admin {
 		$parts = explode( '/', $route );
 		$slug  = end( $parts );
 
-		if ( $slug === '' ) {
+		if ( '' === $slug ) {
 			return '';
 		}
 
@@ -388,12 +425,14 @@ class Admin {
 		}
 
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen || empty( $screen->post_type ) || $screen->base !== 'post' ) {
+		if ( ! $screen || empty( $screen->post_type ) || 'post' !== $screen->base ) {
 			return $args;
 		}
 
 		$post_id = null;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only filter of an admin term query; no state is changed.
 		if ( ! empty( $_GET['post'] ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only filter of an admin term query; no state is changed.
 			$post_id = (int) $_GET['post'];
 		} elseif ( isset( $GLOBALS['post'] ) && $GLOBALS['post'] instanceof \WP_Post ) {
 			$post_id = (int) $GLOBALS['post']->ID;
@@ -407,7 +446,7 @@ class Admin {
 			return $args;
 		}
 
-		$taxonomy_for_type = PTTS()->get_taxonomy_for_post_type( $post->post_type );
+		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
 		if ( ! $taxonomy_for_type || ! \in_array( $taxonomy_for_type, $taxonomies, true ) ) {
 			return $args;
 		}
@@ -417,11 +456,10 @@ class Admin {
 			return $args;
 		}
 
-		$exclude   = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
-		$exclude[] = $synced_term_id;
+		$exclude         = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
+		$exclude[]       = $synced_term_id;
 		$args['exclude'] = array_unique( array_filter( $exclude ) );
 
 		return $args;
 	}
-
 }

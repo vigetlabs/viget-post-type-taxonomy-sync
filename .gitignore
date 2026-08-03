@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Composer (library lock file — not needed since we only require composer/installers).
+composer.phar
+/composer.lock
+
+# Distributable zip output
+/dist/
+*.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# wp-env
+.wp-env.override.json

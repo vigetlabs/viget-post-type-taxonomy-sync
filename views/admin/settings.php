@@ -1,15 +1,20 @@
 <?php
 /**
- * Settings page for Post Type Taxonomy Sync
+ * Settings page for Viget Post Type Taxonomy Sync
  *
- * @package PostTypeTaxonomySync
+ * @package Viget\PostTypeTaxonomySync
  */
 
-use PostTypeTaxonomySync\Settings;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+use Viget\PostTypeTaxonomySync\Settings;
 ?>
 <div class="wrap">
-	<h1><?php esc_html_e( 'Post Type Taxonomy Sync', 'post-type-taxonomy-sync' ); ?></h1>
-	<form method="post" action="<?php echo admin_url( 'options.php' ); ?>">
+	<h1><?php esc_html_e( 'Post Type Taxonomy Sync', 'viget-post-type-taxonomy-sync' ); ?></h1>
+	<?php settings_errors( Settings::OPTION_NAME ); ?>
+	<form method="post" action="<?php echo esc_url( admin_url( 'options.php' ) ); ?>">
 		<?php
 		settings_fields( Settings::OPTION_NAME );
 		do_settings_sections( Settings::PAGE_SLUG );

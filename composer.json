@@ -1,0 +1,28 @@
+{
+  "name": "viget/viget-post-type-taxonomy-sync",
+  "description": "Keeps selected post types and taxonomies in sync, storing related IDs in post and term meta.",
+  "keywords": [
+    "wordpress",
+    "post-type",
+    "taxonomy",
+    "sync"
+  ],
+  "type": "wordpress-plugin",
+  "homepage": "https://github.com/vigetlabs/viget-post-type-taxonomy-sync",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Viget",
+      "homepage": "https://viget.com/"
+    }
+  ],
+  "require": {
+    "composer/installers": "^1.0 || ^2.0"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "composer/installers": true
+    }
+  }
+}
