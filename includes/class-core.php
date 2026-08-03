@@ -58,6 +58,13 @@ class Core {
 	private ?Admin $admin = null;
 
 	/**
+	 * REST instance.
+	 *
+	 * @var REST|null
+	 */
+	private ?REST $rest = null;
+
+	/**
 	 * Get the singleton instance.
 	 *
 	 * @return Core
@@ -86,12 +93,14 @@ class Core {
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-settings.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-sync.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-admin.php';
+		require_once VGPTTS_PLUGIN_PATH . 'includes/class-rest.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-github-plugin-updater.php';
 
 		// Initialize dependencies.
 		$this->settings = Settings::get_instance();
 		$this->sync     = Sync::get_instance();
 		$this->admin    = Admin::get_instance();
+		$this->rest     = REST::get_instance();
 
 		// Check for plugin updates from GitHub releases.
 		new GitHub_Plugin_Updater( VGPTTS_PLUGIN_FILE, 'vigetlabs', 'viget-post-type-taxonomy-sync' );

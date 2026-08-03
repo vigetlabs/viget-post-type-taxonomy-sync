@@ -19,7 +19,7 @@ Keeps a post type and a taxonomy in sync automatically: publish a post and a mat
 - A manual "Sync" action per mapping backfills missing terms/posts and removes orphaned ones.
 - Hides the auto-managed taxonomy's term-management UI (submenu, "Add New Term" controls, block editor panel) so editors don't edit synced terms directly.
 - Excludes a post's own synced term from its taxonomy picker, so a post can't be tagged with itself.
-- A small set of filters for customizing behavior without forking — see [docs/api.md](docs/api.md).
+- A small set of filters for customizing behavior without forking, and a read-only REST API for fetching synced relationships — see [docs/api.md](docs/api.md).
 - Checks for updates from GitHub releases directly in the WordPress dashboard.
 
 ## Installation
@@ -53,9 +53,9 @@ This plugin checks GitHub releases every 12 hours and surfaces available updates
 
 Note: shipping a custom update checker is intentionally incompatible with wordpress.org's plugin directory (the [Plugin Check](https://wordpress.org/plugins/plugin-check/) tool flags it as a hard error under `plugin_updater_detected`). If this plugin is ever submitted there, the updater would need to be removed first.
 
-## Hooks
+## Developer API
 
-Public methods and filters are documented in [docs/api.md](docs/api.md).
+Public methods, filters, and REST API routes are documented in [docs/api.md](docs/api.md).
 
 ## Development
 
@@ -74,6 +74,18 @@ composer install   # PHP dependencies (composer/installers)
 npm run env:start   # boots WordPress + this plugin via @wordpress/env (requires Docker)
 npm run env:stop
 ```
+
+### Tests
+
+PHPUnit tests run against a real WordPress install via `@wordpress/env`'s `tests-wordpress`/`tests-cli` services (WP core's test suite is downloaded automatically the first time it's needed):
+
+```bash
+npm run env:start   # only needed once per session
+composer install    # installs phpunit + yoast/phpunit-polyfills
+npm test
+```
+
+The suite covers `Core`, `Settings`, `Sync` (including regression tests for two WordPress-core hook-signature bugs fixed in 2.0.0 — see the changelog), `Admin`, the REST API, and the GitHub updater (with mocked HTTP responses).
 
 ### Releasing a new version
 

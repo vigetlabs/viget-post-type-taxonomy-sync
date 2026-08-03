@@ -111,4 +111,24 @@
 		<exclude-pattern>/views/*</exclude-pattern>
 	</rule>
 
+	<!--
+	PHPUnit test classes follow PHPUnit's own naming convention (e.g. CoreTest.php /
+	class CoreTest), not WordPress's "class-{name}.php" / plugin-prefix conventions,
+	since they're never loaded outside the test suite.
+	-->
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+
+	<!--
+	Test method docblocks conventionally lead with the method-under-test's exact
+	(lowercase) name, e.g. "get_mappings() drops entries missing a taxonomy."
+	-->
+	<rule ref="Generic.Commenting.DocComment.ShortNotCapital">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+
 </ruleset>

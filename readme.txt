@@ -21,7 +21,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * A manual "Sync" action per mapping reconciles existing content (backfills missing terms/posts, removes orphaned ones).
 * Hides the auto-managed taxonomy's term-management UI (submenu, "Add New Term" controls, block editor panel) so editors don't edit synced terms directly.
 * Excludes a post's own synced term from its taxonomy picker, so a post can't be tagged with itself.
-* Ships a small set of filters (`vgptts_mappings`, `vgptts_synced_term_args`, `vgptts_synced_post_args`) for customizing behavior — see [docs/api.md](docs/api.md).
+* Ships a small set of filters (`vgptts_mappings`, `vgptts_synced_term_args`, `vgptts_synced_post_args`) and a read-only REST API for reading synced relationships — see [docs/api.md](docs/api.md).
 * Checks for updates from GitHub releases directly in the WordPress dashboard — no wordpress.org listing required.
 
 = Installation =

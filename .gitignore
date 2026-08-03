@@ -2,9 +2,8 @@
 node_modules/
 vendor/
 
-# Composer (library lock file — not needed since we only require composer/installers).
+# Composer
 composer.phar
-/composer.lock
 
 # Distributable zip output
 /dist/
@@ -17,3 +16,6 @@ composer.phar
 
 # wp-env
 .wp-env.override.json
+
+# PHPUnit
+.phpunit.result.cache

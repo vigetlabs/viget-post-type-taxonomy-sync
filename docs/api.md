@@ -41,6 +41,26 @@ Returns the post ID linked to a given term via the sync, or `null` if the term i
 
 Runs a full reconciliation for one mapping: creates/updates a term for every published post of `$post_type`, and removes any term whose linked post is missing, trashed, or of the wrong type. This is what the settings page's per-row **Sync** button triggers via AJAX (`vgptts_sync_mapping`); call it directly for a WP-CLI command or a scheduled job.
 
+## REST API
+
+All routes are under the `vgptts/v1` namespace and are read-only (`GET`). A post route is readable if the post is publicly viewable or the current user can `read_post` it; a term route is readable if its taxonomy is public or the current user can `assign_terms` on it. Unauthorized or nonexistent lookups return a standard `WP_Error` REST response (404, or 401/403 via `rest_authorization_required_code()`).
+
+### `GET /vgptts/v1/posts/{id}/synced-term`
+
+Returns the term synced to a post: `{ id, taxonomy, name, slug, link, parent }`. 404s if the post's type isn't mapped, or it doesn't have a synced term yet (e.g. it isn't published).
+
+### `GET /vgptts/v1/terms/{id}/synced-post`
+
+Returns the post synced to a term: `{ id, post_type, status, title, slug, link, parent }`. 404s if the term has no synced post.
+
+### `GET /vgptts/v1/posts/{id}/related?taxonomy={taxonomy}`
+
+Returns an array of posts related to the given post through `$taxonomy` (see `Core::get_related_post_ids_for_post()` above) — i.e. posts whose synced term has been assigned to this post. The `taxonomy` query param is required and must be a registered taxonomy.
+
+```
+GET /wp-json/vgptts/v1/posts/42/related?taxonomy=product-line
+```
+
 ## Filters
 
 ### `vgptts_mappings`
