@@ -1,6 +1,6 @@
 {
   "name": "viget-post-type-taxonomy-sync",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Keeps selected post types and taxonomies in sync, storing related IDs in post and term meta.",
   "author": "Viget",
   "license": "GPL-2.0-or-later",

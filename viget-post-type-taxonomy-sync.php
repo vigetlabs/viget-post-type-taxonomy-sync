@@ -3,7 +3,7 @@
  * Plugin Name:       Viget Post Type Taxonomy Sync
  * Plugin URI:        https://github.com/vigetlabs/viget-post-type-taxonomy-sync
  * Description:       Keeps selected post types and taxonomies in sync, storing related IDs in post and term meta.
- * Version:           2.0.0
+ * Version:           2.0.1
  * Requires at least: 5.9
  * Requires PHP:      8.2
  * Author:            Viget
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'VGPTTS_PLUGIN_VERSION', '2.0.0' );
+define( 'VGPTTS_PLUGIN_VERSION', '2.0.1' );
 define( 'VGPTTS_PLUGIN_FILE', __FILE__ );
 define( 'VGPTTS_PLUGIN_PATH', plugin_dir_path( VGPTTS_PLUGIN_FILE ) );
 define( 'VGPTTS_PLUGIN_URL', plugin_dir_url( VGPTTS_PLUGIN_FILE ) );
