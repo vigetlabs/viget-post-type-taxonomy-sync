@@ -387,8 +387,14 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
+		// Seed an unlinked term the way an editor would. The sync would otherwise create a
+		// post for it, and that post would take the slug this test needs for the conflict.
+		remove_action( 'saved_term', [ vgptts()->sync, 'handle_term_save' ], 10 );
 		$existing = wp_insert_term( 'Hand Made', 'post_tag' );
+		add_action( 'saved_term', [ vgptts()->sync, 'handle_term_save' ], 10, 3 );
+
 		$existing_id = (int) $existing['term_id'];
+		$this->assertEmpty( get_term_meta( $existing_id, Core::TERM_META_KEY, true ) );
 
 		$post_id = self::factory()->post->create(
 			[
@@ -438,7 +444,7 @@ class SyncTest extends VGPTTS_TestCase {
 				'post_name'   => 'shared-name',
 			]
 		);
-		$term_id = (int) get_post_meta( $owner_id, Core::POST_META_KEY, true );
+		$term_id  = (int) get_post_meta( $owner_id, Core::POST_META_KEY, true );
 		$this->assertNotEmpty( $term_id );
 
 		$other_id = self::factory()->post->create(
