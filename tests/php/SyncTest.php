@@ -373,4 +373,84 @@ class SyncTest extends VGPTTS_TestCase {
 
 		remove_filter( 'vgptts_synced_post_args', $add_excerpt );
 	}
+
+	/**
+	 * A pre-existing term with the same name is adopted rather than left unlinked.
+	 */
+	public function test_post_save_adopts_existing_term() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$existing = wp_insert_term( 'Hand Made', 'post_tag' );
+		$existing_id = (int) $existing['term_id'];
+
+		$post_id = self::factory()->post->create(
+			[
+				'post_status' => 'publish',
+				'post_title'  => 'Hand Made',
+			]
+		);
+
+		$this->assertSame( $existing_id, (int) get_post_meta( $post_id, Core::POST_META_KEY, true ) );
+		$this->assertSame( (string) $post_id, get_term_meta( $existing_id, Core::TERM_META_KEY, true ) );
+
+		// The adopted term now tracks title changes.
+		wp_update_post(
+			[
+				'ID'         => $post_id,
+				'post_title' => 'Machine Made',
+			]
+		);
+
+		$this->assertSame( 'Machine Made', get_term( $existing_id, 'post_tag' )->name );
+	}
+
+	/**
+	 * A term already owned by another post is left alone.
+	 *
+	 * Two post types share one taxonomy so the second post can reuse the first post's
+	 * slug, which is what makes wp_insert_term() report the conflict.
+	 */
+	public function test_post_save_does_not_steal_another_posts_term() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$owner_id = self::factory()->post->create(
+			[
+				'post_status' => 'publish',
+				'post_title'  => 'Shared Name',
+				'post_name'   => 'shared-name',
+			]
+		);
+		$term_id = (int) get_post_meta( $owner_id, Core::POST_META_KEY, true );
+		$this->assertNotEmpty( $term_id );
+
+		$other_id = self::factory()->post->create(
+			[
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'post_title'  => 'Shared Name',
+				'post_name'   => 'shared-name',
+			]
+		);
+
+		$this->assertEmpty( get_post_meta( $other_id, Core::POST_META_KEY, true ) );
+		$this->assertSame( (string) $owner_id, get_term_meta( $term_id, Core::TERM_META_KEY, true ) );
+	}
 }
