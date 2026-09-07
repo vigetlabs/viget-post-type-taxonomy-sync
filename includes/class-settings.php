@@ -160,6 +160,41 @@ class Settings {
 				continue;
 			}
 
+			$post_type_auto = Core::AUTO_VALUE === $mapping['post_type'];
+			$taxonomy_auto  = Core::AUTO_VALUE === $mapping['taxonomy'];
+
+			// One side has to be real: the auto-created one derives its slug from it.
+			if ( $post_type_auto && $taxonomy_auto ) {
+				add_settings_error(
+					self::OPTION_NAME,
+					'vgptts_both_auto',
+					__( 'A mapping needs either a post type or a taxonomy to already exist. Only one side can be auto-created.', 'viget-post-type-taxonomy-sync' ),
+					'error'
+				);
+				continue;
+			}
+
+			$source = isset( $mapping['source_of_truth'] ) && Core::SOURCE_TAXONOMY === $mapping['source_of_truth']
+				? Core::SOURCE_TAXONOMY
+				: Core::SOURCE_POST_TYPE;
+
+			// An auto-created post type mirrors the taxonomy, so only the taxonomy is checked.
+			if ( $post_type_auto ) {
+				$taxonomy = sanitize_key( $mapping['taxonomy'] );
+
+				if ( ! taxonomy_exists( $taxonomy ) ) {
+					continue;
+				}
+
+				$sanitized['mappings'][] = [
+					'taxonomy'                => $taxonomy,
+					'post_type_auto'          => true,
+					'source_of_truth'         => $source,
+					'show_post_type_in_menus' => ! empty( $mapping['show_post_type_in_menus'] ),
+				];
+				continue;
+			}
+
 			$post_type = sanitize_key( $mapping['post_type'] );
 
 			if ( ! post_type_exists( $post_type ) ) {
@@ -168,14 +203,15 @@ class Settings {
 
 			// An auto-created taxonomy derives its slug from the post type and always matches
 			// its hierarchy, so it skips the checks below and stores a flag instead of a slug.
-			if ( Core::AUTO_VALUE === $mapping['taxonomy'] ) {
+			if ( $taxonomy_auto ) {
 				$attach_to = isset( $mapping['attach_to'] ) ? (array) $mapping['attach_to'] : [];
 				$attach_to = array_values( array_filter( array_map( 'sanitize_key', $attach_to ), 'post_type_exists' ) );
 
 				$sanitized['mappings'][] = [
-					'post_type'     => $post_type,
-					'taxonomy_auto' => true,
-					'attach_to'     => $attach_to,
+					'post_type'       => $post_type,
+					'taxonomy_auto'   => true,
+					'attach_to'       => $attach_to,
+					'source_of_truth' => $source,
 				];
 				continue;
 			}
@@ -208,8 +244,9 @@ class Settings {
 			}
 
 			$sanitized['mappings'][] = [
-				'post_type' => $post_type,
-				'taxonomy'  => $taxonomy,
+				'post_type'       => $post_type,
+				'taxonomy'        => $taxonomy,
+				'source_of_truth' => $source,
 			];
 		}
 
@@ -290,7 +327,20 @@ class Settings {
 			);
 		}
 
-		vgptts()->sync->sync_terms( $post_type, $taxonomy );
+		$source = Core::SOURCE_POST_TYPE;
+
+		foreach ( vgptts()->get_mappings() as $mapping ) {
+			if ( $mapping['post_type'] === $post_type && $mapping['taxonomy'] === $taxonomy ) {
+				$source = $mapping['source_of_truth'];
+				break;
+			}
+		}
+
+		if ( Core::SOURCE_TAXONOMY === $source ) {
+			vgptts()->sync->sync_posts( $post_type, $taxonomy );
+		} else {
+			vgptts()->sync->sync_terms( $post_type, $taxonomy );
+		}
 
 		wp_send_json_success( [ 'message' => __( 'Sync completed.', 'viget-post-type-taxonomy-sync' ) ] );
 	}
@@ -328,7 +378,11 @@ class Settings {
 			];
 		}
 
-		$auto_value = Core::AUTO_VALUE;
+		$auto_value     = Core::AUTO_VALUE;
+		$source_options = [
+			Core::SOURCE_POST_TYPE => __( 'Post Type', 'viget-post-type-taxonomy-sync' ),
+			Core::SOURCE_TAXONOMY  => __( 'Taxonomy', 'viget-post-type-taxonomy-sync' ),
+		];
 
 		require VGPTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
 	}
