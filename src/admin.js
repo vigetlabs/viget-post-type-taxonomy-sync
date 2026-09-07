@@ -20,6 +20,26 @@
 		cell.hidden = select.value !== AUTO_VALUE;
 	}
 
+	// Menu visibility is only ours to decide for an auto-created post type the editor
+	// does not manage.
+	function syncMenuToggleVisibility( row ) {
+		const source = row.querySelector( '.vgptts-source-select' );
+		const toggle = row.querySelector( '.vgptts-menu-toggle' );
+		if ( ! source || ! toggle ) {
+			return;
+		}
+		const postType = row.querySelector( '.vgptts-post-type-select' );
+		const postTypeIsAuto = postType
+			? postType.value === AUTO_VALUE
+			: row.dataset.postTypeAuto === '1';
+		toggle.hidden = ! ( postTypeIsAuto && source.value === 'taxonomy' );
+	}
+
+	function syncRow( row ) {
+		syncAttachVisibility( row );
+		syncMenuToggleVisibility( row );
+	}
+
 	function getDataRows() {
 		return Array.prototype.filter.call(
 			tbody.querySelectorAll( 'tr' ),
@@ -60,7 +80,7 @@
 			.forEach( function ( input ) {
 				input.checked = false;
 			} );
-		syncAttachVisibility( newRow );
+		syncRow( newRow );
 
 		tbody.insertBefore( newRow, templateRow );
 	}
@@ -152,13 +172,17 @@
 
 	table.addEventListener( 'click', handleTableClick );
 	table.addEventListener( 'change', function ( event ) {
+		if ( ! event.target || ! event.target.closest ) {
+			return;
+		}
 		if (
-			event.target &&
-			event.target.classList.contains( 'vgptts-taxonomy-select' )
+			event.target.classList.contains( 'vgptts-taxonomy-select' ) ||
+			event.target.classList.contains( 'vgptts-post-type-select' ) ||
+			event.target.classList.contains( 'vgptts-source-select' )
 		) {
-			syncAttachVisibility( event.target.closest( 'tr' ) );
+			syncRow( event.target.closest( 'tr' ) );
 		}
 	} );
 
-	getDataRows().forEach( syncAttachVisibility );
+	getDataRows().forEach( syncRow );
 } )();
