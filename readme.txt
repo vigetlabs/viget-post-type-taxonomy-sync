@@ -41,7 +41,8 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * Fixed: a post whose title matches an existing term now adopts that term instead of silently never syncing. Previously the `term_exists` error from `wp_insert_term()` was swallowed, so the post/term link was never written and that post could never sync again. A term already owned by another published post is left alone.
 * Declared support through WordPress 7.1.
 * Updated build and test dependencies (`@wordpress/env` 11, `@wordpress/scripts` 35, `yoast/phpunit-polyfills` 4).
-* Added a grouped weekly Dependabot configuration for GitHub Actions, Composer, and npm.
+* Added a grouped weekly Dependabot configuration for GitHub Actions, Composer, and npm, holding back TypeScript majors until typescript-eslint supports them.
+* Updated the GitHub Actions workflows to `actions/checkout` and `actions/setup-node` v7.
 * Release tooling: `npm run release` now refuses to bump a version that has no changelog entry.
 
 = 2.0.1 =
