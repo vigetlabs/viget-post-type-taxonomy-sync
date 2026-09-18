@@ -220,7 +220,31 @@ class Sync {
 		$args = apply_filters( 'vgptts_synced_term_args', $args, $post, $taxonomy );
 
 		$created = wp_insert_term( $post->post_title, $taxonomy, $args );
-		if ( is_wp_error( $created ) || empty( $created['term_id'] ) ) {
+
+		if ( is_wp_error( $created ) ) {
+			// A term with this name already exists, usually hand-created by an editor. Adopt it,
+			// otherwise wp_insert_term() fails on every save and the post never syncs.
+			$existing_id = 'term_exists' === $created->get_error_code() ? (int) $created->get_error_data() : 0;
+
+			if ( ! $existing_id ) {
+				return null;
+			}
+
+			// Leave it alone if another live post already owns it.
+			$owner_id = (int) get_term_meta( $existing_id, Core::TERM_META_KEY, true );
+
+			if ( $owner_id && $owner_id !== $post->ID && get_post( $owner_id ) ) {
+				return null;
+			}
+
+			update_post_meta( $post->ID, Core::POST_META_KEY, $existing_id );
+			update_term_meta( $existing_id, Core::TERM_META_KEY, $post->ID );
+
+			// Re-run so the adopted term picks up the post's slug and parent.
+			return $this->upsert_term_for_post( $post, $taxonomy );
+		}
+
+		if ( empty( $created['term_id'] ) ) {
 			return null;
 		}
 
