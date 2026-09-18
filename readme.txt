@@ -1,7 +1,7 @@
 === Viget Post Type Taxonomy Sync ===
 Contributors: Viget
 Requires at least: 5.9
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.2
 Stable tag: 2.0.1
 License: GPLv2 or later
