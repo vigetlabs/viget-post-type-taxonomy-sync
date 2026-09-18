@@ -77,11 +77,8 @@ class Sync {
 			$post_type = isset( $mapping['post_type'] ) ? $mapping['post_type'] : '';
 			$taxonomy  = isset( $mapping['taxonomy'] ) ? $mapping['taxonomy'] : '';
 
-			if ( ! $post_type || ! post_type_exists( $post_type ) ) {
-				continue;
-			}
-
-			if ( ! $taxonomy || ! taxonomy_exists( $taxonomy ) ) {
+			// No existence check: this runs before themes register on `init`. Handlers validate.
+			if ( ! $post_type || ! $taxonomy ) {
 				continue;
 			}
 
@@ -309,7 +306,7 @@ class Sync {
 
 		$post_type = vgptts()->get_post_type_for_taxonomy( $taxonomy );
 
-		if ( ! $post_type ) {
+		if ( ! $post_type || ! post_type_exists( $post_type ) ) {
 			return;
 		}
 

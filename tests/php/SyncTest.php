@@ -459,4 +459,51 @@ class SyncTest extends VGPTTS_TestCase {
 		$this->assertEmpty( get_post_meta( $other_id, Core::POST_META_KEY, true ) );
 		$this->assertSame( (string) $owner_id, get_term_meta( $term_id, Core::TERM_META_KEY, true ) );
 	}
+
+	/**
+	 * Hooks register even when the mapped post type and taxonomy don't exist yet.
+	 */
+	public function test_hooks_register_before_post_type_is_registered() {
+		update_option(
+			Core::OPTION_NAME,
+			[
+				'mappings' => [
+					[
+						'post_type' => 'vgptts_late_cpt',
+						'taxonomy'  => 'vgptts_late_tax',
+					],
+				],
+			]
+		);
+
+		$this->assertFalse( post_type_exists( 'vgptts_late_cpt' ) );
+		$this->assertFalse( taxonomy_exists( 'vgptts_late_tax' ) );
+
+		vgptts()->sync->register_hooks();
+
+		$this->assertNotFalse(
+			has_action( 'save_post_vgptts_late_cpt', [ vgptts()->sync, 'handle_post_save' ] ),
+			'save_post hook should register regardless of when the post type is registered.'
+		);
+		$this->assertNotFalse( has_action( 'saved_term', [ vgptts()->sync, 'handle_term_save' ] ) );
+
+		// Register them late, the way a theme does.
+		register_post_type( 'vgptts_late_cpt', [ 'public' => true ] );
+		register_taxonomy( 'vgptts_late_tax', 'post', [ 'hierarchical' => true ] );
+
+		$post_id = self::factory()->post->create(
+			[
+				'post_type'   => 'vgptts_late_cpt',
+				'post_status' => 'publish',
+				'post_title'  => 'Late Registration',
+			]
+		);
+
+		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$this->assertNotEmpty( $term_id, 'A post saved after late CPT registration should still sync.' );
+		$this->assertSame( 'Late Registration', get_term( $term_id, 'vgptts_late_tax' )->name );
+
+		unregister_post_type( 'vgptts_late_cpt' );
+		unregister_taxonomy( 'vgptts_late_tax' );
+	}
 }
