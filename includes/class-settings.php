@@ -161,9 +161,28 @@ class Settings {
 			}
 
 			$post_type = sanitize_key( $mapping['post_type'] );
-			$taxonomy  = sanitize_key( $mapping['taxonomy'] );
 
-			if ( ! post_type_exists( $post_type ) || ! taxonomy_exists( $taxonomy ) ) {
+			if ( ! post_type_exists( $post_type ) ) {
+				continue;
+			}
+
+			// An auto-created taxonomy derives its slug from the post type and always matches
+			// its hierarchy, so it skips the checks below and stores a flag instead of a slug.
+			if ( Core::AUTO_VALUE === $mapping['taxonomy'] ) {
+				$attach_to = isset( $mapping['attach_to'] ) ? (array) $mapping['attach_to'] : [];
+				$attach_to = array_values( array_filter( array_map( 'sanitize_key', $attach_to ), 'post_type_exists' ) );
+
+				$sanitized['mappings'][] = [
+					'post_type'     => $post_type,
+					'taxonomy_auto' => true,
+					'attach_to'     => $attach_to,
+				];
+				continue;
+			}
+
+			$taxonomy = sanitize_key( $mapping['taxonomy'] );
+
+			if ( ! taxonomy_exists( $taxonomy ) ) {
 				continue;
 			}
 
@@ -308,6 +327,8 @@ class Settings {
 				'taxonomy'  => '',
 			];
 		}
+
+		$auto_value = Core::AUTO_VALUE;
 
 		require VGPTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
 	}

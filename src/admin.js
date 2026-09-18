@@ -8,6 +8,17 @@
 	const tbody = table.querySelector( 'tbody' );
 	const templateRow = document.getElementById( 'vgptts-row-template' );
 	const addButton = document.getElementById( 'vgptts-add-row' );
+	const AUTO_VALUE = '__vgptts_auto__';
+
+	// The Attach To checkboxes only mean anything for an auto-created taxonomy.
+	function syncAttachVisibility( row ) {
+		const select = row.querySelector( '.vgptts-taxonomy-select' );
+		const cell = row.querySelector( '.vgptts-attach-cell' );
+		if ( ! select || ! cell ) {
+			return;
+		}
+		cell.hidden = select.value !== AUTO_VALUE;
+	}
 
 	function getDataRows() {
 		return Array.prototype.filter.call(
@@ -44,6 +55,12 @@
 		newRow.querySelectorAll( 'select' ).forEach( function ( select ) {
 			select.value = '';
 		} );
+		newRow
+			.querySelectorAll( 'input[type="checkbox"]' )
+			.forEach( function ( input ) {
+				input.checked = false;
+			} );
+		syncAttachVisibility( newRow );
 
 		tbody.insertBefore( newRow, templateRow );
 	}
@@ -134,4 +151,14 @@
 	}
 
 	table.addEventListener( 'click', handleTableClick );
+	table.addEventListener( 'change', function ( event ) {
+		if (
+			event.target &&
+			event.target.classList.contains( 'vgptts-taxonomy-select' )
+		) {
+			syncAttachVisibility( event.target.closest( 'tr' ) );
+		}
+	} );
+
+	getDataRows().forEach( syncAttachVisibility );
 } )();
