@@ -42,6 +42,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * Declared support through WordPress 7.1.
 * Updated build and test dependencies (`@wordpress/env` 11, `@wordpress/scripts` 35, `yoast/phpunit-polyfills` 4).
 * Added a grouped weekly Dependabot configuration for GitHub Actions, Composer, and npm.
+* Release tooling: `npm run release` now refuses to bump a version that has no changelog entry.
 
 = 2.0.1 =
 * Development tooling only: fixed the CI workflow's PHPCS `allow-plugins` setting and PHPUnit binary path, and corrected the `wp-env` plugin mount path after the repo rename. No changes to plugin behavior.
