@@ -3,7 +3,7 @@ Contributors: Viget
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 2.0.1
+Stable tag: 2.0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,17 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * PHP 8.2+
 
 == Changelog ==
+
+= 2.0.2 =
+* Fixed: a post whose title matches an existing term now adopts that term instead of silently never syncing. Previously the `term_exists` error from `wp_insert_term()` was swallowed, so the post/term link was never written and that post could never sync again. A term already owned by another published post is left alone.
+* Declared support through WordPress 7.1.
+* Updated build and test dependencies (`@wordpress/env` 11, `@wordpress/scripts` 35, `yoast/phpunit-polyfills` 4).
+* Added a grouped weekly Dependabot configuration for GitHub Actions, Composer, and npm, holding back TypeScript majors until typescript-eslint supports them.
+* Updated the GitHub Actions workflows to `actions/checkout` and `actions/setup-node` v7.
+* Release tooling: `npm run release` now refuses to bump a version that has no changelog entry.
+
+= 2.0.1 =
+* Development tooling only: fixed the CI workflow's PHPCS `allow-plugins` setting and PHPUnit binary path, and corrected the `wp-env` plugin mount path after the repo rename. No changes to plugin behavior.
 
 = 2.0.0 =
 * Renamed the plugin (and all internal identifiers, option/meta keys, text domain) to `viget-post-type-taxonomy-sync` ahead of reuse across multiple sites. The global `PTTS()` helper still works as a deprecated alias for `vgptts()` (triggers `_doing_it_wrong()`) to ease migrating existing sites; everything else is a breaking change with no other backward-compatible aliases.

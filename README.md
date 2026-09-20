@@ -89,13 +89,26 @@ The suite covers `Core`, `Settings`, `Sync` (including regression tests for two 
 
 ### Releasing a new version
 
-Versioning, tagging, and publishing are handled by one command:
+**Write the changelog entry first.** Add a `= X.Y.Z =` section at the top of the Changelog in [`readme.txt`](readme.txt) for the version you're about to cut. The release command refuses to run without it.
+
+Then:
 
 ```bash
 npm run release -- patch   # or: minor | major
 ```
 
-This bumps `package.json`, syncs the version into the plugin header/constant and `readme.txt` (see `bin/sync-version.js`), commits, tags `vX.Y.Z`, and pushes. Pushing the tag triggers [`.github/workflows/release.yaml`](.github/workflows/release.yaml), which builds the plugin zip and publishes a GitHub release.
+This bumps `package.json`, syncs the version into the plugin header/constant and `readme.txt` (see [`bin/sync-version.js`](bin/sync-version.js)), commits, tags `vX.Y.Z`, and pushes. Pushing the tag triggers [`.github/workflows/release.yaml`](.github/workflows/release.yaml), which builds the plugin zip and publishes a GitHub release.
+
+Never edit the version by hand. Four places have to agree - `package.json`, the plugin header, `VGPTTS_PLUGIN_VERSION`, and `readme.txt`'s `Stable tag` - and the script is what keeps them that way.
+
+If the changelog entry is missing you'll get:
+
+```
+readme.txt has no changelog entry for 2.1.0.
+Add a "= 2.1.0 =" section under "== Changelog ==" describing this release, then re-run.
+```
+
+Nothing is written when that happens, so add the entry and re-run. `npm version` has already bumped `package.json` by then, so either amend it or let the re-run carry it.
 
 ## Changelog
 

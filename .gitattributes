@@ -1,5 +1,6 @@
 /.github export-ignore
 /docs export-ignore
+/AGENTS.md export-ignore
 /src export-ignore
 /tests export-ignore
 /bin export-ignore
