@@ -38,6 +38,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 == Changelog ==
 
 = 2.0.2 =
+* Fixed: sync hooks are now registered regardless of the order a theme registers its post types and taxonomies. `register_hooks()` runs on `init` from plugin load, before a theme's own `init` callbacks, and it was gating on `post_type_exists()`/`taxonomy_exists()` - so every mapping was skipped and no sync hooks were ever added. Automatic syncing did not happen at all; only the manual **Sync** button worked. Validation moved into the handlers, where both are guaranteed to be registered.
 * Fixed: a post whose title matches an existing term now adopts that term instead of silently never syncing. Previously the `term_exists` error from `wp_insert_term()` was swallowed, so the post/term link was never written and that post could never sync again. A term already owned by another published post is left alone.
 * Declared support through WordPress 7.1.
 * Updated build and test dependencies (`@wordpress/env` 11, `@wordpress/scripts` 35, `yoast/phpunit-polyfills` 4).
