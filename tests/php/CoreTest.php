@@ -42,15 +42,16 @@ class CoreTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertSame(
-			[
-				[
-					'post_type' => 'post',
-					'taxonomy'  => 'post_tag',
-				],
-			],
+		// Compared as pairs so the assertion stays about filtering rather than the exact
+		// set of keys a resolved mapping carries.
+		$pairs = array_map(
+			static function ( array $mapping ): array {
+				return [ $mapping['post_type'], $mapping['taxonomy'] ];
+			},
 			vgptts()->get_mappings()
 		);
+
+		$this->assertSame( [ [ 'post', 'post_tag' ] ], $pairs );
 	}
 
 	/**

@@ -1,7 +1,32 @@
+#vgptts-mappings-table td,
+#vgptts-mappings-table th {
+	vertical-align: middle;
+}
+
 .form-table #vgptts-mappings-table th {
 	padding-left: 10px;
 	padding-top: 10px;
 	padding-bottom: 10px;
+}
+
+#vgptts-mappings-table select {
+	width: 100%;
+	max-width: 100%;
+}
+
+.vgptts-attach-option {
+	display: block;
+	margin-bottom: 2px;
+	white-space: nowrap;
+}
+
+.vgptts-attach-na {
+	color: #646970;
+}
+
+.vgptts-actions-cell {
+	white-space: nowrap;
+	width: 1%;
 }
 
 .vgptts-actions-cell .button + .button {

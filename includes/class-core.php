@@ -30,6 +30,38 @@ class Core {
 	const TERM_META_KEY = '_vgptts_post_id';
 
 	/**
+	 * Select value meaning "register this taxonomy for me".
+	 */
+	const AUTO_VALUE = '__vgptts_auto__';
+
+	/**
+	 * Suffix appended to a post type slug to build its auto-created taxonomy slug.
+	 */
+	const AUTO_TAXONOMY_SUFFIX = '_sync';
+
+	/**
+	 * Builds the taxonomy slug for an auto-created mapping.
+	 *
+	 * Taxonomy names are capped at 32 characters, so the post type slug is trimmed
+	 * to make room for the suffix.
+	 *
+	 * @param string $post_type Post type slug.
+	 *
+	 * @return string
+	 */
+	public static function auto_taxonomy_slug( string $post_type ): string {
+		$post_type = sanitize_key( $post_type );
+
+		if ( ! $post_type ) {
+			return '';
+		}
+
+		$max_base = 32 - strlen( self::AUTO_TAXONOMY_SUFFIX );
+
+		return substr( $post_type, 0, $max_base ) . self::AUTO_TAXONOMY_SUFFIX;
+	}
+
+	/**
 	 * Instance of this class.
 	 *
 	 * @var Core|null
@@ -42,6 +74,13 @@ class Core {
 	 * @var Settings|null
 	 */
 	public ?Settings $settings = null;
+
+	/**
+	 * Registrar instance.
+	 *
+	 * @var Registrar|null
+	 */
+	public ?Registrar $registrar = null;
 
 	/**
 	 * Sync instance.
@@ -91,16 +130,18 @@ class Core {
 	private function init(): void {
 		// Load dependencies.
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-settings.php';
+		require_once VGPTTS_PLUGIN_PATH . 'includes/class-registrar.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-sync.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-admin.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-rest.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-github-plugin-updater.php';
 
 		// Initialize dependencies.
-		$this->settings = Settings::get_instance();
-		$this->sync     = Sync::get_instance();
-		$this->admin    = Admin::get_instance();
-		$this->rest     = REST::get_instance();
+		$this->settings  = Settings::get_instance();
+		$this->registrar = Registrar::get_instance();
+		$this->sync      = Sync::get_instance();
+		$this->admin     = Admin::get_instance();
+		$this->rest      = REST::get_instance();
 
 		// Check for plugin updates from GitHub releases.
 		new GitHub_Plugin_Updater( VGPTTS_PLUGIN_FILE, 'vigetlabs', 'viget-post-type-taxonomy-sync' );
@@ -122,13 +163,28 @@ class Core {
 		$result   = [];
 
 		foreach ( $mappings as $mapping ) {
-			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
+			if ( empty( $mapping['post_type'] ) ) {
+				continue;
+			}
+
+			$post_type = sanitize_key( $mapping['post_type'] );
+			$is_auto   = ! empty( $mapping['taxonomy_auto'] );
+
+			// Auto-created taxonomies derive their slug from the post type, so it is
+			// resolved here rather than stored, keeping one source of truth.
+			$taxonomy = $is_auto
+				? self::auto_taxonomy_slug( $post_type )
+				: sanitize_key( isset( $mapping['taxonomy'] ) ? $mapping['taxonomy'] : '' );
+
+			if ( ! $taxonomy ) {
 				continue;
 			}
 
 			$result[] = [
-				'post_type' => sanitize_key( $mapping['post_type'] ),
-				'taxonomy'  => sanitize_key( $mapping['taxonomy'] ),
+				'post_type'     => $post_type,
+				'taxonomy'      => $taxonomy,
+				'taxonomy_auto' => $is_auto,
+				'attach_to'     => $is_auto ? array_map( 'sanitize_key', (array) ( $mapping['attach_to'] ?? [] ) ) : [],
 			];
 		}
 
