@@ -45,6 +45,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * Added a grouped weekly Dependabot configuration for GitHub Actions, Composer, and npm, holding back TypeScript majors until typescript-eslint supports them.
 * Updated the GitHub Actions workflows to `actions/checkout` and `actions/setup-node` v7.
 * Release tooling: `npm run release` now refuses to bump a version that has no changelog entry.
+* Marked `build/` and `languages/*.pot` as generated in `.gitattributes`, so they collapse in pull request diffs and stay out of the repo's language stats. Neither distribution archive changes - `linguist-*` attributes are not read by `git archive`.
 
 = 2.0.1 =
 * Development tooling only: fixed the CI workflow's PHPCS `allow-plugins` setting and PHPUnit binary path, and corrected the `wp-env` plugin mount path after the repo rename. No changes to plugin behavior.
