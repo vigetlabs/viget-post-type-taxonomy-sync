@@ -20,6 +20,12 @@
 	white-space: nowrap;
 }
 
+.vgptts-menu-toggle {
+	display: block;
+	margin-top: 6px;
+	white-space: nowrap;
+}
+
 .vgptts-attach-na {
 	color: #646970;
 }

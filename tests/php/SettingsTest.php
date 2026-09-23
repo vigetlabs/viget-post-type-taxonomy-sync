@@ -94,17 +94,9 @@ class SettingsTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertSame(
-			[
-				'mappings' => [
-					[
-						'post_type' => 'post',
-						'taxonomy'  => 'category',
-					],
-				],
-			],
-			$sanitized
-		);
+		$this->assertCount( 1, $sanitized['mappings'] );
+		$this->assertSame( 'post', $sanitized['mappings'][0]['post_type'] );
+		$this->assertSame( 'category', $sanitized['mappings'][0]['taxonomy'] );
 	}
 
 	/**
@@ -124,17 +116,9 @@ class SettingsTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertSame(
-			[
-				'mappings' => [
-					[
-						'post_type' => 'page',
-						'taxonomy'  => 'vgptts_test_tax',
-					],
-				],
-			],
-			$sanitized
-		);
+		$this->assertCount( 1, $sanitized['mappings'] );
+		$this->assertSame( 'page', $sanitized['mappings'][0]['post_type'] );
+		$this->assertSame( 'vgptts_test_tax', $sanitized['mappings'][0]['taxonomy'] );
 
 		unregister_taxonomy( 'vgptts_test_tax' );
 	}

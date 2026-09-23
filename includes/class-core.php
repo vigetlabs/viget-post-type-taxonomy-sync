@@ -35,9 +35,36 @@ class Core {
 	const AUTO_VALUE = '__vgptts_auto__';
 
 	/**
-	 * Suffix appended to a post type slug to build its auto-created taxonomy slug.
+	 * Suffix appended to a slug to build its auto-created counterpart.
 	 */
 	const AUTO_TAXONOMY_SUFFIX = '_sync';
+
+	/**
+	 * Source of truth values. The side named here is the one editors manage.
+	 */
+	const SOURCE_POST_TYPE = 'post_type';
+	const SOURCE_TAXONOMY  = 'taxonomy';
+
+	/**
+	 * Builds the post type slug for a mapping whose post type is auto-created.
+	 *
+	 * Post type names are capped at 20 characters, tighter than taxonomies.
+	 *
+	 * @param string $taxonomy Taxonomy slug.
+	 *
+	 * @return string
+	 */
+	public static function auto_post_type_slug( string $taxonomy ): string {
+		$taxonomy = sanitize_key( $taxonomy );
+
+		if ( ! $taxonomy ) {
+			return '';
+		}
+
+		$max_base = 20 - strlen( self::AUTO_TAXONOMY_SUFFIX );
+
+		return substr( $taxonomy, 0, $max_base ) . self::AUTO_TAXONOMY_SUFFIX;
+	}
 
 	/**
 	 * Builds the taxonomy slug for an auto-created mapping.
@@ -163,28 +190,44 @@ class Core {
 		$result   = [];
 
 		foreach ( $mappings as $mapping ) {
-			if ( empty( $mapping['post_type'] ) ) {
+			$taxonomy_auto  = ! empty( $mapping['taxonomy_auto'] );
+			$post_type_auto = ! empty( $mapping['post_type_auto'] );
+
+			// Only one side can be auto-created: the other is what its slug is derived from.
+			if ( $taxonomy_auto && $post_type_auto ) {
 				continue;
 			}
 
-			$post_type = sanitize_key( $mapping['post_type'] );
-			$is_auto   = ! empty( $mapping['taxonomy_auto'] );
+			$post_type = sanitize_key( isset( $mapping['post_type'] ) ? $mapping['post_type'] : '' );
+			$taxonomy  = sanitize_key( isset( $mapping['taxonomy'] ) ? $mapping['taxonomy'] : '' );
 
-			// Auto-created taxonomies derive their slug from the post type, so it is
-			// resolved here rather than stored, keeping one source of truth.
-			$taxonomy = $is_auto
-				? self::auto_taxonomy_slug( $post_type )
-				: sanitize_key( isset( $mapping['taxonomy'] ) ? $mapping['taxonomy'] : '' );
+			// An auto-created slug is resolved here rather than stored, keeping one source
+			// of truth for it.
+			if ( $taxonomy_auto ) {
+				$taxonomy = self::auto_taxonomy_slug( $post_type );
+			} elseif ( $post_type_auto ) {
+				$post_type = self::auto_post_type_slug( $taxonomy );
+			}
 
-			if ( ! $taxonomy ) {
+			if ( ! $post_type || ! $taxonomy ) {
 				continue;
 			}
+
+			$source = isset( $mapping['source_of_truth'] ) && self::SOURCE_TAXONOMY === $mapping['source_of_truth']
+				? self::SOURCE_TAXONOMY
+				: self::SOURCE_POST_TYPE;
 
 			$result[] = [
-				'post_type'     => $post_type,
-				'taxonomy'      => $taxonomy,
-				'taxonomy_auto' => $is_auto,
-				'attach_to'     => $is_auto ? array_map( 'sanitize_key', (array) ( $mapping['attach_to'] ?? [] ) ) : [],
+				'post_type'               => $post_type,
+				'taxonomy'                => $taxonomy,
+				'taxonomy_auto'           => $taxonomy_auto,
+				'post_type_auto'          => $post_type_auto,
+				'attach_to'               => $taxonomy_auto ? array_map( 'sanitize_key', (array) ( $mapping['attach_to'] ?? [] ) ) : [],
+				'source_of_truth'         => $source,
+				// Only meaningful for an auto-created post type the editor does not manage.
+				'show_post_type_in_menus' => $post_type_auto && self::SOURCE_TAXONOMY === $source
+					? ! empty( $mapping['show_post_type_in_menus'] )
+					: true,
 			];
 		}
 

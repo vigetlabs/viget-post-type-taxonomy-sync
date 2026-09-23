@@ -69,7 +69,7 @@ class Admin {
 	 */
 	protected function get_synced_taxonomies_for_post_type( string $post_type ): array {
 		$result   = [];
-		$mappings = vgptts()->get_mappings();
+		$mappings = $this->get_post_type_sourced_mappings();
 
 		foreach ( $mappings as $mapping ) {
 			$mapped_post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
@@ -101,12 +101,33 @@ class Admin {
 	}
 
 	/**
+	 * Mappings whose terms are managed by the plugin rather than by editors.
+	 *
+	 * The taxonomy side is locked down only when the post type is the source of truth.
+	 * When the taxonomy is the source, editors manage terms directly and the UI is left
+	 * alone.
+	 *
+	 * @return array
+	 */
+	protected function get_post_type_sourced_mappings(): array {
+		$result = [];
+
+		foreach ( vgptts()->get_mappings() as $mapping ) {
+			if ( Core::SOURCE_POST_TYPE === $mapping['source_of_truth'] ) {
+				$result[] = $mapping;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Removes taxonomy term-management submenu items for mapped taxonomies.
 	 *
 	 * @return void
 	 */
 	public function hide_synced_taxonomy_submenus(): void {
-		$mappings = vgptts()->get_mappings();
+		$mappings = $this->get_post_type_sourced_mappings();
 
 		if ( empty( $mappings ) ) {
 			return;
@@ -156,7 +177,7 @@ class Admin {
 	 * @return void
 	 */
 	public function enqueue_hide_synced_taxonomy_submenu_css(): void {
-		$mappings = vgptts()->get_mappings();
+		$mappings = $this->get_post_type_sourced_mappings();
 		if ( empty( $mappings ) ) {
 			return;
 		}
@@ -272,6 +293,11 @@ class Admin {
 			return;
 		}
 
+		// Editors own the terms when the taxonomy is the source of truth.
+		if ( Core::SOURCE_TAXONOMY === $this->get_source_for_taxonomy( $taxonomy ) ) {
+			return;
+		}
+
 		wp_send_json_error(
 			[
 				'message' => __( 'This taxonomy is managed automatically and does not allow adding new terms here.', 'viget-post-type-taxonomy-sync' ),
@@ -286,7 +312,7 @@ class Admin {
 	 * @return void
 	 */
 	public function register_rest_terms_exclude_filter(): void {
-		$mappings = vgptts()->get_mappings();
+		$mappings = $this->get_post_type_sourced_mappings();
 		if ( empty( $mappings ) ) {
 			return;
 		}
@@ -461,5 +487,22 @@ class Admin {
 		$args['exclude'] = array_unique( array_filter( $exclude ) );
 
 		return $args;
+	}
+
+	/**
+	 * Source of truth for the mapping a taxonomy belongs to.
+	 *
+	 * @param string $taxonomy Taxonomy slug.
+	 *
+	 * @return string
+	 */
+	protected function get_source_for_taxonomy( string $taxonomy ): string {
+		foreach ( vgptts()->get_mappings() as $mapping ) {
+			if ( $mapping['taxonomy'] === $taxonomy ) {
+				return $mapping['source_of_truth'];
+			}
+		}
+
+		return Core::SOURCE_POST_TYPE;
 	}
 }

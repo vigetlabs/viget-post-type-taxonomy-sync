@@ -469,4 +469,70 @@ class Sync {
 
 		$this->is_syncing = false;
 	}
+
+	/**
+	 * Performs a full sync in the other direction: every term gets a post, and posts whose
+	 * term is gone are removed.
+	 *
+	 * Used when the taxonomy is the mapping's source of truth.
+	 *
+	 * @param string $post_type Post type slug.
+	 * @param string $taxonomy  Taxonomy slug.
+	 *
+	 * @return void
+	 */
+	public function sync_posts( string $post_type, string $taxonomy ): void {
+		if ( $this->is_syncing ) {
+			return;
+		}
+
+		if ( ! post_type_exists( $post_type ) || ! taxonomy_exists( $taxonomy ) ) {
+			return;
+		}
+
+		$terms = get_terms(
+			[
+				'taxonomy'   => $taxonomy,
+				'hide_empty' => false,
+				'fields'     => 'ids',
+			]
+		);
+
+		if ( is_wp_error( $terms ) ) {
+			return;
+		}
+
+		// handle_term_save() already creates or updates the post and links both sides, and
+		// it guards itself with is_syncing, so it is called directly rather than duplicated.
+		foreach ( $terms as $term_id ) {
+			$this->handle_term_save( $term_id, 0, $taxonomy );
+		}
+
+		$this->is_syncing = true;
+
+		// Remove posts whose term no longer exists.
+		$posts = get_posts(
+			[
+				'post_type'      => $post_type,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+				'fields'         => 'ids',
+			]
+		);
+
+		foreach ( $posts as $post_id ) {
+			$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+
+			if ( ! $term_id ) {
+				continue;
+			}
+
+			if ( ! term_exists( $term_id, $taxonomy ) ) {
+				wp_delete_post( $post_id, true );
+			}
+		}
+
+		$this->is_syncing = false;
+	}
 }
