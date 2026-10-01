@@ -107,29 +107,21 @@ class Core {
 	}
 
 	/**
-	 * Gets sanitized mappings from the options table.
+	 * Gets all active mappings: registered in code first, then saved on the settings page.
+	 *
+	 * A saved mapping is skipped when a registered mapping already claims its post
+	 * type or taxonomy, since each side can only be synced once.
 	 *
 	 * @return array
 	 */
 	public function get_mappings() {
-		$settings = $this->settings->get_settings();
+		$registered = $this->get_registered_mappings();
+		$result     = $registered;
 
-		if ( ! $settings ) {
-			return [];
-		}
-
-		$mappings = $settings['mappings'];
-		$result   = [];
-
-		foreach ( $mappings as $mapping ) {
-			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
-				continue;
+		foreach ( $this->get_saved_mappings() as $mapping ) {
+			if ( ! $this->is_overridden( $mapping, $registered ) ) {
+				$result[] = $mapping;
 			}
-
-			$result[] = [
-				'post_type' => sanitize_key( $mapping['post_type'] ),
-				'taxonomy'  => sanitize_key( $mapping['taxonomy'] ),
-			];
 		}
 
 		/**
@@ -138,6 +130,88 @@ class Core {
 		 * @param array $result The sanitized mappings, each an array with `post_type` and `taxonomy` keys.
 		 */
 		return apply_filters( 'vgptts_mappings', $result );
+	}
+
+	/**
+	 * Gets sanitized mappings saved on the settings page.
+	 *
+	 * @return array
+	 */
+	public function get_saved_mappings(): array {
+		$settings = $this->settings->get_settings();
+
+		if ( ! $settings || empty( $settings['mappings'] ) ) {
+			return [];
+		}
+
+		return $this->sanitize_mappings( (array) $settings['mappings'] );
+	}
+
+	/**
+	 * Gets sanitized mappings registered in code.
+	 *
+	 * Registered mappings show on the settings page as locked rows that can be
+	 * synced but not edited or removed.
+	 *
+	 * @return array
+	 */
+	public function get_registered_mappings(): array {
+		/**
+		 * Filters the mappings registered in code.
+		 *
+		 * @param array $mappings Mappings, each an array with `post_type` and `taxonomy` keys.
+		 */
+		$mappings = apply_filters( 'vgptts_registered_mappings', [] );
+
+		return $this->sanitize_mappings( (array) $mappings );
+	}
+
+	/**
+	 * Whether a saved mapping is overridden by a registered mapping for the same post type or taxonomy.
+	 *
+	 * @param array      $mapping    Mapping with `post_type` and `taxonomy` keys.
+	 * @param array|null $registered Registered mappings. Defaults to get_registered_mappings().
+	 *
+	 * @return bool
+	 */
+	public function is_overridden( array $mapping, ?array $registered = null ): bool {
+		$registered = $registered ?? $this->get_registered_mappings();
+
+		foreach ( $registered as $claimed ) {
+			if ( $claimed['post_type'] === $mapping['post_type'] || $claimed['taxonomy'] === $mapping['taxonomy'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Drops incomplete and duplicate mappings, and sanitizes slugs.
+	 *
+	 * @param array $mappings Raw mappings.
+	 *
+	 * @return array
+	 */
+	private function sanitize_mappings( array $mappings ): array {
+		$result = [];
+
+		foreach ( $mappings as $mapping ) {
+			if ( ! \is_array( $mapping ) || empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
+				continue;
+			}
+
+			$sanitized = [
+				'post_type' => sanitize_key( $mapping['post_type'] ),
+				'taxonomy'  => sanitize_key( $mapping['taxonomy'] ),
+			];
+
+			if ( ! \in_array( $sanitized, $result, true ) ) {
+				$result[] = $sanitized;
+			}
+		}
+
+		return $result;
 	}
 
 	/**

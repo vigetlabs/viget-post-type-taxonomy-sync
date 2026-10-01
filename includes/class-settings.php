@@ -155,6 +155,8 @@ class Settings {
 			return $sanitized;
 		}
 
+		$registered = vgptts()->get_registered_mappings();
+
 		foreach ( $input['mappings'] as $mapping ) {
 			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
 				continue;
@@ -164,6 +166,18 @@ class Settings {
 			$taxonomy  = sanitize_key( $mapping['taxonomy'] );
 
 			if ( ! post_type_exists( $post_type ) || ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+
+			// Already registered in code, so there's nothing to save.
+			if ( \in_array(
+				[
+					'post_type' => $post_type,
+					'taxonomy'  => $taxonomy,
+				],
+				$registered,
+				true
+			) ) {
 				continue;
 			}
 
@@ -225,6 +239,12 @@ class Settings {
 		wp_enqueue_script( 'vgptts-mappings-field' );
 		wp_enqueue_style( 'vgptts-admin-styles' );
 
+		// Core tooltip for registered mappings (WordPress 7.1+).
+		if ( wp_script_is( 'wp-tooltip', 'registered' ) ) {
+			wp_enqueue_script( 'wp-tooltip' );
+			wp_enqueue_style( 'wp-tooltip' );
+		}
+
 		wp_localize_script(
 			'vgptts-mappings-field',
 			'vgpttsMappings',
@@ -282,8 +302,9 @@ class Settings {
 	 * @return void
 	 */
 	public function render_mappings_field() {
-		$settings = $this->get_settings();
-		$mappings = $settings['mappings'];
+		$settings   = $this->get_settings();
+		$mappings   = $settings['mappings'];
+		$registered = vgptts()->get_registered_mappings();
 
 		$post_types = get_post_types(
 			[
