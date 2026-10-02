@@ -109,20 +109,13 @@ class Core {
 	/**
 	 * Gets all active mappings: registered in code first, then saved on the settings page.
 	 *
-	 * A saved mapping is skipped when a registered mapping already claims its post
-	 * type or taxonomy, since each side can only be synced once.
+	 * A post type and a taxonomy can each sync once, so a mapping that reuses one
+	 * already claimed by an earlier mapping is left out. See get_flagged_mappings().
 	 *
 	 * @return array
 	 */
 	public function get_mappings() {
-		$registered = $this->get_registered_mappings();
-		$result     = $registered;
-
-		foreach ( $this->get_saved_mappings() as $mapping ) {
-			if ( ! $this->is_overridden( $mapping, $registered ) ) {
-				$result[] = $mapping;
-			}
-		}
+		$result = $this->resolve_mappings()['active'];
 
 		/**
 		 * Filters the resolved post type / taxonomy mappings.
@@ -130,6 +123,70 @@ class Core {
 		 * @param array $result The sanitized mappings, each an array with `post_type` and `taxonomy` keys.
 		 */
 		return apply_filters( 'vgptts_mappings', $result );
+	}
+
+	/**
+	 * Gets mappings left out of get_mappings() because an earlier mapping claimed their post type or taxonomy.
+	 *
+	 * Each has `post_type` and `taxonomy` keys, plus `source` (`registered` or `saved`)
+	 * and `conflict`, the active mapping that claimed it.
+	 *
+	 * @return array
+	 */
+	public function get_flagged_mappings(): array {
+		return $this->resolve_mappings()['flagged'];
+	}
+
+	/**
+	 * Splits registered and saved mappings into active and flagged, first claim wins.
+	 *
+	 * @return array{active: array, flagged: array}
+	 */
+	private function resolve_mappings(): array {
+		$active  = [];
+		$flagged = [];
+		$sources = [
+			'registered' => $this->get_registered_mappings(),
+			'saved'      => $this->get_saved_mappings(),
+		];
+
+		foreach ( $sources as $source => $mappings ) {
+			foreach ( $mappings as $mapping ) {
+				$conflict = $this->find_conflict( $mapping, $active );
+
+				if ( $conflict ) {
+					$flagged[] = $mapping + [
+						'source'   => $source,
+						'conflict' => $conflict,
+					];
+				} else {
+					$active[] = $mapping;
+				}
+			}
+		}
+
+		return [
+			'active'  => $active,
+			'flagged' => $flagged,
+		];
+	}
+
+	/**
+	 * Finds the first mapping that shares a post type or taxonomy with the given one.
+	 *
+	 * @param array $mapping  Mapping with `post_type` and `taxonomy` keys.
+	 * @param array $mappings Mappings to search.
+	 *
+	 * @return array|null
+	 */
+	public function find_conflict( array $mapping, array $mappings ): ?array {
+		foreach ( $mappings as $claimed ) {
+			if ( $claimed['post_type'] === $mapping['post_type'] || $claimed['taxonomy'] === $mapping['taxonomy'] ) {
+				return $claimed;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -175,15 +232,7 @@ class Core {
 	 * @return bool
 	 */
 	public function is_overridden( array $mapping, ?array $registered = null ): bool {
-		$registered = $registered ?? $this->get_registered_mappings();
-
-		foreach ( $registered as $claimed ) {
-			if ( $claimed['post_type'] === $mapping['post_type'] || $claimed['taxonomy'] === $mapping['taxonomy'] ) {
-				return true;
-			}
-		}
-
-		return false;
+		return null !== $this->find_conflict( $mapping, $registered ?? $this->get_registered_mappings() );
 	}
 
 	/**

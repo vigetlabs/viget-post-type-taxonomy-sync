@@ -169,15 +169,32 @@ class Settings {
 				continue;
 			}
 
-			// Already registered in code, so there's nothing to save.
-			if ( \in_array(
-				[
-					'post_type' => $post_type,
-					'taxonomy'  => $taxonomy,
-				],
-				$registered,
-				true
-			) ) {
+			$pair = [
+				'post_type' => $post_type,
+				'taxonomy'  => $taxonomy,
+			];
+
+			// Already registered in code or earlier in this save, so there's nothing to add.
+			if ( \in_array( $pair, $registered, true ) || \in_array( $pair, $sanitized['mappings'], true ) ) {
+				continue;
+			}
+
+			// A post type and a taxonomy can each sync once.
+			$conflict = vgptts()->find_conflict( $pair, $sanitized['mappings'] );
+			if ( $conflict ) {
+				add_settings_error(
+					self::OPTION_NAME,
+					"vgptts_conflict_{$post_type}_{$taxonomy}",
+					sprintf(
+						/* translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug */
+						__( 'Mapping "%1$s" to "%2$s" was not saved. "%3$s" to "%4$s" already uses that post type or taxonomy.', 'viget-post-type-taxonomy-sync' ),
+						$post_type,
+						$taxonomy,
+						$conflict['post_type'],
+						$conflict['taxonomy']
+					),
+					'error'
+				);
 				continue;
 			}
 
@@ -202,10 +219,7 @@ class Settings {
 				continue;
 			}
 
-			$sanitized['mappings'][] = [
-				'post_type' => $post_type,
-				'taxonomy'  => $taxonomy,
-			];
+			$sanitized['mappings'][] = $pair;
 		}
 
 		return $sanitized;
@@ -304,7 +318,8 @@ class Settings {
 	public function render_mappings_field() {
 		$settings   = $this->get_settings();
 		$mappings   = $settings['mappings'];
-		$registered = vgptts()->get_registered_mappings();
+		$flagged    = vgptts()->get_flagged_mappings();
+		$registered = $this->get_registered_rows( $flagged );
 
 		$post_types = get_post_types(
 			[
@@ -331,5 +346,105 @@ class Settings {
 		}
 
 		require VGPTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
+	}
+
+	/**
+	 * Gets registered mappings for the settings page, each with a `note` saying why it isn't synced, or null.
+	 *
+	 * @param array|null $flagged Flagged mappings. Defaults to vgptts()->get_flagged_mappings().
+	 *
+	 * @return array
+	 */
+	public function get_registered_rows( ?array $flagged = null ): array {
+		$flagged = $flagged ?? vgptts()->get_flagged_mappings();
+		$rows    = [];
+
+		foreach ( vgptts()->get_registered_mappings() as $mapping ) {
+			$rows[] = $mapping + [ 'note' => self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping ) ];
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Gets the note for a flagged mapping, or null when it isn't flagged.
+	 *
+	 * @param array  $mapping Mapping with `post_type` and `taxonomy` keys.
+	 * @param string $source  `registered` or `saved`.
+	 * @param array  $flagged Flagged mappings from vgptts()->get_flagged_mappings().
+	 *
+	 * @return string|null
+	 */
+	public static function get_flag_note( array $mapping, string $source, array $flagged ): ?string {
+		foreach ( $flagged as $flag ) {
+			if ( $source !== $flag['source'] || $flag['post_type'] !== $mapping['post_type'] || $flag['taxonomy'] !== $mapping['taxonomy'] ) {
+				continue;
+			}
+
+			$shares_taxonomy = $flag['conflict']['taxonomy'] === $mapping['taxonomy'];
+
+			return sprintf(
+				/* translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with */
+				__( 'Not synced: %1$s already syncs with %2$s.', 'viget-post-type-taxonomy-sync' ),
+				$shares_taxonomy ? self::get_taxonomy_label( $mapping['taxonomy'] ) : self::get_post_type_label( $mapping['post_type'] ),
+				$shares_taxonomy ? self::get_post_type_label( $flag['conflict']['post_type'] ) : self::get_taxonomy_label( $flag['conflict']['taxonomy'] )
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets the note for a registered mapping that can't sync on this site, or null when it can.
+	 *
+	 * Checked here rather than at registration, since post types and taxonomies may register after the filter runs.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string|null
+	 */
+	private static function get_invalid_note( array $mapping ): ?string {
+		$post_type_obj = get_post_type_object( $mapping['post_type'] );
+		$tax_obj       = get_taxonomy( $mapping['taxonomy'] );
+
+		if ( ! $post_type_obj ) {
+			/* translators: %s: post type slug */
+			return sprintf( __( 'Not synced: the "%s" post type is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['post_type'] );
+		}
+
+		if ( ! $tax_obj ) {
+			/* translators: %s: taxonomy slug */
+			return sprintf( __( 'Not synced: the "%s" taxonomy is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['taxonomy'] );
+		}
+
+		if ( $post_type_obj->hierarchical && ! $tax_obj->hierarchical ) {
+			return __( 'Not synced: a hierarchical post type cannot sync to a non-hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' );
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets a post type's singular name, or its slug when it isn't registered.
+	 *
+	 * @param string $slug Post type slug.
+	 *
+	 * @return string
+	 */
+	public static function get_post_type_label( string $slug ): string {
+		$object = get_post_type_object( $slug );
+		return $object->labels->singular_name ?? $slug;
+	}
+
+	/**
+	 * Gets a taxonomy's singular name, or its slug when it isn't registered.
+	 *
+	 * @param string $slug Taxonomy slug.
+	 *
+	 * @return string
+	 */
+	public static function get_taxonomy_label( string $slug ): string {
+		$object = get_taxonomy( $slug );
+		return $object ? $object->labels->singular_name : $slug;
 	}
 }

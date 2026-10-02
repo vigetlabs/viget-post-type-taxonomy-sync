@@ -4,19 +4,48 @@
 	padding-bottom: 10px;
 }
 
-.vgptts-registered-label {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
+#vgptts-mappings-table select {
+	width: 100%;
+	max-width: none;
 }
 
-.vgptts-registered-label .wp-tooltip.vgptts-registered-icon .wp-tooltip__bubble {
+#vgptts-mappings-table .vgptts-icon-cell {
+	width: 20px;
+	text-align: center;
+	vertical-align: middle;
+}
+
+/*
+ * Core anchors the bubble flush against the icon; keep it on one line
+ * with a small gap.
+ */
+.vgptts-icon-cell .wp-tooltip.vgptts-registered-icon .wp-tooltip__bubble {
 	margin-bottom: 4px;
 	white-space: nowrap;
 }
 
 span.dashicons.vgptts-registered-icon {
 	color: #8c8f94;
+}
+
+.vgptts-row-flagged .vgptts-mapping-label {
+	color: #646970;
+	text-decoration: line-through;
+}
+
+.vgptts-row-flagged .vgptts-registered-icon,
+.vgptts-row-flagged .vgptts-registered-icon .dashicons {
+	color: #b32d2e;
+}
+
+.vgptts-discard-row {
+	color: #8c8f94;
+	cursor: pointer;
+}
+
+.vgptts-discard-row:hover,
+.vgptts-discard-row:focus {
+	color: #b32d2e;
 }
 
 .vgptts-row-note {

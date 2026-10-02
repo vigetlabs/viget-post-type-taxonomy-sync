@@ -11,13 +11,33 @@ vgptts()->get_mappings();
 
 ### `get_mappings(): array`
 
-Returns the sanitized list of active mappings, registered first and then saved, each an array with `post_type` and `taxonomy` keys.
+Returns every active mapping, each an array with `post_type` and `taxonomy` keys: mappings registered in code first, then mappings saved on the settings page. A post type and a taxonomy can each sync once, so a mapping that reuses one already claimed by an earlier mapping is left out (see `get_flagged_mappings()`). The result passes through the `vgptts_mappings` filter.
 
 ```php
 foreach ( vgptts()->get_mappings() as $mapping ) {
 	// $mapping['post_type'], $mapping['taxonomy']
 }
 ```
+
+### `get_registered_mappings(): array`
+
+Returns the sanitized, de-duplicated mappings registered through the `vgptts_registered_mappings` filter.
+
+### `get_saved_mappings(): array`
+
+Returns the sanitized mappings saved on the settings page.
+
+### `get_flagged_mappings(): array`
+
+Returns the mappings left out of `get_mappings()`, each with `post_type`, `taxonomy`, `source` (`registered` or `saved`) and `conflict`, the active mapping that claimed its post type or taxonomy first.
+
+### `find_conflict( array $mapping, array $mappings ): ?array`
+
+Returns the first of `$mappings` that shares a post type or taxonomy with `$mapping`, or `null`.
+
+### `is_overridden( array $mapping, ?array $registered = null ): bool`
+
+Whether a saved mapping shares its post type or taxonomy with a registered mapping, and is therefore inactive.
 
 ### `get_taxonomy_for_post_type( string $post_type ): ?string`
 
@@ -63,13 +83,19 @@ GET /wp-json/vgptts/v1/posts/42/related?taxonomy=product-line
 
 ## Filters
 
-### `vgptts_mappings`
+### `vgptts_registered_mappings`
 
-Filters the resolved mappings array before it's used anywhere else in the plugin.
+Registers mappings in code, for a plugin or theme that owns both the post type and the taxonomy. Registered mappings:
+
+- sync without anything being saved on the settings page;
+- show on the settings page as locked rows, with a **Sync** button and no way to edit or remove them;
+- take precedence over a saved mapping that uses the same post type or taxonomy. The saved row is flagged as not synced.
+
+A post type and a taxonomy can each sync once. A registered mapping that reuses one claimed by an earlier registered mapping, or that names a post type or taxonomy that isn't registered, shows as a flagged row: struck through, with an ✕ whose tooltip says why it isn't synced.
 
 ```php
 add_filter(
-	'vgptts_mappings',
+	'vgptts_registered_mappings',
 	function ( array $mappings ): array {
 		$mappings[] = [
 			'post_type' => 'product',
@@ -80,13 +106,13 @@ add_filter(
 );
 ```
 
-### `vgptts_registered_mappings`
+### `vgptts_mappings`
 
-Registers mappings in code. They're resolved before mappings saved on the settings page, and show there as locked rows that can be synced but not edited or removed. A saved mapping that uses the same post type or taxonomy is skipped.
+Filters the resolved mappings array, registered and saved, before it's used anywhere else in the plugin. Mappings added here are active but don't appear on the settings page. Use `vgptts_registered_mappings` for that.
 
 ```php
 add_filter(
-	'vgptts_registered_mappings',
+	'vgptts_mappings',
 	function ( array $mappings ): array {
 		$mappings[] = [
 			'post_type' => 'product',

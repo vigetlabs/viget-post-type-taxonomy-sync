@@ -104,79 +104,157 @@ class CoreTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * Registered mappings come first, and a saved mapping that shares a post type or taxonomy with one is skipped.
+	 * Registered mappings are active with nothing saved, and come before saved mappings.
 	 */
-	public function test_get_mappings_registered_override_saved() {
-		update_option(
-			Core::OPTION_NAME,
+	public function test_get_mappings_puts_registered_mappings_first() {
+		$this->set_mappings(
 			[
-				'mappings' => [
-					[
-						'post_type' => 'post',
-						'taxonomy'  => 'post_tag',
-					],
-					[
-						'post_type' => 'page',
-						'taxonomy'  => 'category',
-					],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
 				],
 			]
 		);
 
-		$register = static function (): array {
-			return [
+		$this->assertSame(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			],
+			vgptts()->get_mappings()
+		);
+		$this->assertSame( 'category', vgptts()->get_taxonomy_for_post_type( 'page' ) );
+	}
+
+	/**
+	 * A saved mapping sharing a post type or taxonomy with a registered mapping is dropped.
+	 */
+	public function test_registered_mapping_overrides_saved_mapping() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
+				],
 				[
 					'post_type' => 'post',
 					'taxonomy'  => 'category',
 				],
-			];
-		};
-		add_filter( 'vgptts_registered_mappings', $register );
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_format',
+				],
+			]
+		);
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
 
 		$this->assertSame(
 			[
 				[
-					'post_type' => 'post',
+					'post_type' => 'page',
 					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_format',
 				],
 			],
 			vgptts()->get_mappings()
 		);
-
-		remove_filter( 'vgptts_registered_mappings', $register );
+		$this->assertTrue(
+			vgptts()->is_overridden(
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				]
+			)
+		);
+		$this->assertFalse(
+			vgptts()->is_overridden(
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_format',
+				]
+			)
+		);
 	}
 
 	/**
-	 * get_registered_mappings() drops incomplete entries and duplicates.
+	 * get_registered_mappings() drops incomplete entries, sanitizes slugs and removes duplicates.
 	 */
-	public function test_get_registered_mappings_sanitizes_entries() {
-		$register = static function (): array {
-			return [
+	public function test_get_registered_mappings_sanitizes_and_dedupes() {
+		$this->set_registered_mappings(
+			[
 				[
-					'post_type' => 'Post',
-					'taxonomy'  => 'post_tag',
+					'post_type' => ' Page ',
+					'taxonomy'  => 'Category',
 				],
 				[
-					'post_type' => 'post',
-					'taxonomy'  => 'post_tag',
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
 				],
-				[ 'post_type' => 'page' ],
+				[ 'post_type' => 'post' ],
 				'not-a-mapping',
-			];
-		};
-		add_filter( 'vgptts_registered_mappings', $register );
+			]
+		);
 
 		$this->assertSame(
 			[
 				[
-					'post_type' => 'post',
-					'taxonomy'  => 'post_tag',
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
 				],
 			],
 			vgptts()->get_registered_mappings()
 		);
+	}
 
-		remove_filter( 'vgptts_registered_mappings', $register );
+	/**
+	 * A registered mapping syncs on save, with nothing saved on the settings page.
+	 */
+	public function test_registered_mapping_syncs_on_save() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$page_id = self::factory()->post->create(
+			[
+				'post_type'   => 'page',
+				'post_title'  => 'Registered Mapping Page',
+				'post_status' => 'publish',
+			]
+		);
+
+		$term = get_term_by( 'name', 'Registered Mapping Page', 'category' );
+
+		$this->assertInstanceOf( WP_Term::class, $term );
+		$this->assertSame( $page_id, vgptts()->get_post_id_for_term( $term->term_id ) );
 	}
 
 	/**
@@ -217,6 +295,91 @@ class CoreTest extends VGPTTS_TestCase {
 				$registered
 			)
 		);
+	}
+
+	/**
+	 * A registered mapping that reuses a taxonomy claimed by an earlier one is flagged and left out.
+	 */
+	public function test_registered_mapping_sharing_taxonomy_is_flagged() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$this->assertSame(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			],
+			vgptts()->get_mappings()
+		);
+		$this->assertSame(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+					'source'    => 'registered',
+					'conflict'  => [
+						'post_type' => 'post',
+						'taxonomy'  => 'category',
+					],
+				],
+			],
+			vgptts()->get_flagged_mappings()
+		);
+	}
+
+	/**
+	 * A post type can only sync to one taxonomy, so a second registered mapping for it is flagged.
+	 */
+	public function test_registered_mapping_sharing_post_type_is_flagged() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$this->assertCount( 1, vgptts()->get_mappings() );
+		$this->assertSame( 'post_tag', vgptts()->get_flagged_mappings()[0]['taxonomy'] );
+	}
+
+	/**
+	 * Saved mappings follow the same rule: the first to claim a taxonomy wins.
+	 */
+	public function test_saved_mapping_sharing_taxonomy_is_flagged() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$this->assertSame( 'post', vgptts()->get_post_type_for_taxonomy( 'category' ) );
+		$this->assertCount( 1, vgptts()->get_mappings() );
+		$this->assertSame( 'saved', vgptts()->get_flagged_mappings()[0]['source'] );
 	}
 
 	/**

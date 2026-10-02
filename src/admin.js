@@ -9,6 +9,7 @@
 	const templateRow = document.getElementById( 'vgptts-row-template' );
 	const addButton = document.getElementById( 'vgptts-add-row' );
 
+	// Editable rows only. Registered rows are locked and never submitted.
 	function getDataRows() {
 		return Array.prototype.filter.call(
 			tbody.querySelectorAll( 'tr' ),
@@ -21,8 +22,80 @@
 		);
 	}
 
+	function getRowSelects( row ) {
+		return {
+			postType: row.querySelector( 'select[name$="[post_type]"]' ),
+			taxonomy: row.querySelector( 'select[name$="[taxonomy]"]' ),
+		};
+	}
+
+	// Unsaved rows read their selects; saved and registered rows carry their pair as data attributes.
+	function getRowPair( row ) {
+		const selects = getRowSelects( row );
+		return {
+			postType: selects.postType
+				? selects.postType.value
+				: row.getAttribute( 'data-post-type' ),
+			taxonomy: selects.taxonomy
+				? selects.taxonomy.value
+				: row.getAttribute( 'data-taxonomy' ),
+		};
+	}
+
+	// Post types and taxonomies used by every other row. Flagged rows don't sync, so they don't count.
+	function getTaken( exceptRow ) {
+		const taken = { postTypes: [], taxonomies: [] };
+		tbody.querySelectorAll( 'tr' ).forEach( function ( row ) {
+			if (
+				row === exceptRow ||
+				row.classList.contains( 'vgptts-row-template' ) ||
+				row.classList.contains( 'vgptts-row-flagged' )
+			) {
+				return;
+			}
+			const pair = getRowPair( row );
+			if ( pair.postType ) {
+				taken.postTypes.push( pair.postType );
+			}
+			if ( pair.taxonomy ) {
+				taken.taxonomies.push( pair.taxonomy );
+			}
+		} );
+		return taken;
+	}
+
+	function toggleOptions( select, takenValues ) {
+		Array.prototype.forEach.call( select.options, function ( option ) {
+			const taken =
+				option.value !== '' &&
+				takenValues.indexOf( option.value ) !== -1;
+			option.disabled = taken;
+			option.hidden = taken;
+		} );
+	}
+
+	// A post type and a taxonomy can each sync once, so hide any another row already uses.
+	function filterPendingRows() {
+		tbody.querySelectorAll( 'tr' ).forEach( function ( row ) {
+			const selects = getRowSelects( row );
+			if (
+				row.classList.contains( 'vgptts-row-template' ) ||
+				! selects.postType ||
+				! selects.taxonomy
+			) {
+				return;
+			}
+			const taken = getTaken( row );
+			toggleOptions( selects.postType, taken.postTypes );
+			toggleOptions( selects.taxonomy, taken.taxonomies );
+		} );
+	}
+
+	// Only ever increases, so a removed row's index is never handed out twice.
+	let nextIndex = getDataRows().length;
+
 	function getNextIndex() {
-		return getDataRows().length;
+		return nextIndex++;
 	}
 
 	function addRow() {
@@ -49,9 +122,18 @@
 		} );
 
 		tbody.insertBefore( newRow, templateRow );
+		filterPendingRows();
 	}
 
 	function handleTableClick( event ) {
+		const discardButton =
+			event.target && event.target.closest( '.vgptts-discard-row' );
+		if ( discardButton ) {
+			discardButton.closest( 'tr' ).remove();
+			filterPendingRows();
+			return;
+		}
+
 		if (
 			event.target &&
 			event.target.classList.contains( 'vgptts-remove-row' )
@@ -65,6 +147,7 @@
 					select.value = '';
 				} );
 			}
+			filterPendingRows();
 			return;
 		}
 
@@ -137,4 +220,11 @@
 	}
 
 	table.addEventListener( 'click', handleTableClick );
+	table.addEventListener( 'change', function ( event ) {
+		if ( event.target && event.target.tagName === 'SELECT' ) {
+			filterPendingRows();
+		}
+	} );
+
+	filterPendingRows();
 } )();
