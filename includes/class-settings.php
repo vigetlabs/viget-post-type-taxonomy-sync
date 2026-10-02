@@ -269,6 +269,7 @@ class Settings {
 				'removeNonce'   => wp_create_nonce( 'vgptts_remove_mapping' ),
 				'confirmRemove' => __( 'Remove this mapping? Synced posts and terms are kept, but they stop syncing.', 'viget-post-type-taxonomy-sync' ),
 				'removeFailed'  => __( 'The mapping could not be removed. Reload the page and try again.', 'viget-post-type-taxonomy-sync' ),
+				'dismissNotice' => __( 'Dismiss this notice.', 'viget-post-type-taxonomy-sync' ),
 			]
 		);
 
@@ -344,7 +345,16 @@ class Settings {
 
 		update_option( self::OPTION_NAME, [ 'mappings' => array_values( $remaining ) ] );
 
-		wp_send_json_success( [ 'message' => __( 'Mapping removed.', 'viget-post-type-taxonomy-sync' ) ] );
+		wp_send_json_success(
+			[
+				'message' => sprintf(
+					/* translators: 1: post type name, 2: taxonomy name */
+					__( 'Mapping removed: %1$s → %2$s.', 'viget-post-type-taxonomy-sync' ),
+					self::get_post_type_label( $post_type ),
+					self::get_taxonomy_label( $taxonomy )
+				),
+			]
+		);
 	}
 
 	/**

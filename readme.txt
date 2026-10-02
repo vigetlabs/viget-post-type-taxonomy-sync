@@ -3,7 +3,7 @@ Contributors: Viget
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,9 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * PHP 8.2+
 
 == Changelog ==
+
+= 2.1.1 =
+* Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.
 
 = 2.1.0 =
 * Added the `vgptts_registered_mappings` filter to register mappings in code. Registered mappings show on the settings page as locked rows that can be synced but not edited or removed, and a saved mapping that uses the same post type or taxonomy is skipped.
