@@ -11,13 +11,25 @@ vgptts()->get_mappings();
 
 ### `get_mappings(): array`
 
-Returns the sanitized list of configured mappings, each an array with `post_type` and `taxonomy` keys.
+Returns every active mapping, each an array with `post_type` and `taxonomy` keys: mappings registered in code first, then mappings saved on the settings page. A saved mapping is left out when a registered mapping already uses its post type or taxonomy. The result passes through the `vgptts_mappings` filter.
 
 ```php
 foreach ( vgptts()->get_mappings() as $mapping ) {
 	// $mapping['post_type'], $mapping['taxonomy']
 }
 ```
+
+### `get_registered_mappings(): array`
+
+Returns the sanitized, de-duplicated mappings registered through the `vgptts_registered_mappings` filter.
+
+### `get_saved_mappings(): array`
+
+Returns the sanitized mappings saved on the settings page.
+
+### `is_overridden( array $mapping, ?array $registered = null ): bool`
+
+Whether a saved mapping shares its post type or taxonomy with a registered mapping, and is therefore inactive.
 
 ### `get_taxonomy_for_post_type( string $post_type ): ?string`
 
@@ -63,9 +75,30 @@ GET /wp-json/vgptts/v1/posts/42/related?taxonomy=product-line
 
 ## Filters
 
+### `vgptts_registered_mappings`
+
+Registers mappings in code, for a plugin or theme that owns both the post type and the taxonomy. Registered mappings:
+
+- sync without anything being saved on the settings page;
+- show on the settings page as locked rows, with a **Sync** button and no way to edit or remove them;
+- take precedence over a saved mapping that uses the same post type or taxonomy. The saved row is flagged as not synced.
+
+```php
+add_filter(
+	'vgptts_registered_mappings',
+	function ( array $mappings ): array {
+		$mappings[] = [
+			'post_type' => 'product',
+			'taxonomy'  => 'product-line',
+		];
+		return $mappings;
+	}
+);
+```
+
 ### `vgptts_mappings`
 
-Filters the resolved mappings array before it's used anywhere else in the plugin.
+Filters the resolved mappings array, registered and saved, before it's used anywhere else in the plugin. Mappings added here are active but don't appear on the settings page. Use `vgptts_registered_mappings` for that.
 
 ```php
 add_filter(

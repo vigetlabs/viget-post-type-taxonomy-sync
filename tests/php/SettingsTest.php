@@ -157,4 +157,115 @@ class SettingsTest extends VGPTTS_TestCase {
 		$this->assertSame( 'post', $sanitized['mappings'][0]['post_type'] );
 		$this->assertSame( 'post_tag', $sanitized['mappings'][0]['taxonomy'] );
 	}
+
+	/**
+	 * sanitize_settings() doesn't save a mapping that's registered in code.
+	 */
+	public function test_sanitize_settings_drops_registered_mapping() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$sanitized = Settings::sanitize_settings(
+			[
+				'mappings' => [
+					[
+						'post_type' => 'page',
+						'taxonomy'  => 'category',
+					],
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'post_tag',
+					],
+				],
+			]
+		);
+
+		$this->assertSame(
+			[
+				'mappings' => [
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'post_tag',
+					],
+				],
+			],
+			$sanitized
+		);
+	}
+
+	/**
+	 * A registered mapping renders as a locked row: Sync, but no inputs and no Remove.
+	 */
+	public function test_render_mappings_field_locks_registered_mapping() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$row = $this->get_rendered_row( 'vgptts-row-registered' );
+
+		$this->assertStringContainsString( 'data-post-type="page"', $row );
+		$this->assertStringContainsString( 'dashicons-lock', $row );
+		$this->assertStringContainsString( 'Registered in code', $row );
+		$this->assertStringContainsString( 'vgptts-sync-row', $row );
+		$this->assertStringNotContainsString( 'vgptts-remove-row', $row );
+		$this->assertStringNotContainsString( '<input', $row );
+		$this->assertStringNotContainsString( '<select', $row );
+	}
+
+	/**
+	 * A saved mapping overridden by a registered one is flagged, keeps Remove and loses Sync.
+	 */
+	public function test_render_mappings_field_flags_overridden_saved_mapping() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$row = $this->get_rendered_row( 'vgptts-row-overridden' );
+
+		$this->assertStringContainsString( 'data-post-type="post"', $row );
+		$this->assertStringContainsString( 'vgptts-remove-row', $row );
+		$this->assertStringNotContainsString( 'vgptts-sync-row', $row );
+	}
+
+	/**
+	 * Renders the mappings field and returns the first row with the given class.
+	 *
+	 * @param string $class_name Row class.
+	 *
+	 * @return string
+	 */
+	private function get_rendered_row( string $class_name ): string {
+		ob_start();
+		vgptts()->settings->render_mappings_field();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '/<tr class="[^"]*\b' . preg_quote( $class_name, '/' ) . '\b[^"]*".*?<\/tr>/s', $html );
+		preg_match( '/<tr class="[^"]*\b' . preg_quote( $class_name, '/' ) . '\b[^"]*".*?<\/tr>/s', $html, $matches );
+
+		return $matches[0];
+	}
 }

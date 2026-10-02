@@ -4,6 +4,36 @@
 	padding-bottom: 10px;
 }
 
+.vgptts-registered-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+/*
+ * Core anchors the bubble flush against the icon; keep it on one line
+ * with a small gap.
+ */
+.vgptts-registered-label .wp-tooltip.vgptts-registered-icon .wp-tooltip__bubble {
+	margin-bottom: 4px;
+	white-space: nowrap;
+}
+
+span.dashicons.vgptts-registered-icon {
+	color: #8c8f94;
+}
+
+.vgptts-row-note {
+	display: block;
+	margin-top: 4px;
+	color: #646970;
+	font-size: 12px;
+}
+
+.vgptts-row-overridden .vgptts-row-note {
+	color: #b32d2e;
+}
+
 .vgptts-actions-cell .button + .button {
 	margin-left: 6px;
 }

@@ -9,11 +9,15 @@
 	const templateRow = document.getElementById( 'vgptts-row-template' );
 	const addButton = document.getElementById( 'vgptts-add-row' );
 
+	// Editable rows only. Registered rows are locked and never submitted.
 	function getDataRows() {
 		return Array.prototype.filter.call(
 			tbody.querySelectorAll( 'tr' ),
 			function ( row ) {
-				return ! row.classList.contains( 'vgptts-row-template' );
+				return (
+					! row.classList.contains( 'vgptts-row-template' ) &&
+					! row.classList.contains( 'vgptts-row-registered' )
+				);
 			}
 		);
 	}

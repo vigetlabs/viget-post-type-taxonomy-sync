@@ -52,6 +52,15 @@
 		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
 	</rule>
 
+	<!-- Core builds and escapes tooltip markup itself. Escaping it again strips the popover attributes. -->
+	<rule ref="WordPress.Security.EscapeOutput">
+		<properties>
+			<property name="customAutoEscapedFunctions" type="array">
+				<element value="wp_get_tooltip"/>
+			</property>
+		</properties>
+	</rule>
+
 	<!-- Include the WordPress-Extra standard. -->
 	<rule ref="WordPress-Extra">
 		<exclude name="Generic.Arrays.DisallowShortArraySyntax"/>
