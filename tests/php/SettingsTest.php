@@ -157,4 +157,34 @@ class SettingsTest extends VGPTTS_TestCase {
 		$this->assertSame( 'post', $sanitized['mappings'][0]['post_type'] );
 		$this->assertSame( 'post_tag', $sanitized['mappings'][0]['taxonomy'] );
 	}
+
+	/**
+	 * sanitize_settings() skips a mapping that is already registered in code.
+	 */
+	public function test_sanitize_settings_skips_registered_mappings() {
+		$register = static function (): array {
+			return [
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			];
+		};
+		add_filter( 'vgptts_registered_mappings', $register );
+
+		$sanitized = Settings::sanitize_settings(
+			[
+				'mappings' => [
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'post_tag',
+					],
+				],
+			]
+		);
+
+		$this->assertSame( [ 'mappings' => [] ], $sanitized );
+
+		remove_filter( 'vgptts_registered_mappings', $register );
+	}
 }

@@ -104,6 +104,122 @@ class CoreTest extends VGPTTS_TestCase {
 	}
 
 	/**
+	 * Registered mappings come first, and a saved mapping that shares a post type or taxonomy with one is skipped.
+	 */
+	public function test_get_mappings_registered_override_saved() {
+		update_option(
+			Core::OPTION_NAME,
+			[
+				'mappings' => [
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'post_tag',
+					],
+					[
+						'post_type' => 'page',
+						'taxonomy'  => 'category',
+					],
+				],
+			]
+		);
+
+		$register = static function (): array {
+			return [
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			];
+		};
+		add_filter( 'vgptts_registered_mappings', $register );
+
+		$this->assertSame(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			],
+			vgptts()->get_mappings()
+		);
+
+		remove_filter( 'vgptts_registered_mappings', $register );
+	}
+
+	/**
+	 * get_registered_mappings() drops incomplete entries and duplicates.
+	 */
+	public function test_get_registered_mappings_sanitizes_entries() {
+		$register = static function (): array {
+			return [
+				[
+					'post_type' => 'Post',
+					'taxonomy'  => 'post_tag',
+				],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+				[ 'post_type' => 'page' ],
+				'not-a-mapping',
+			];
+		};
+		add_filter( 'vgptts_registered_mappings', $register );
+
+		$this->assertSame(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			],
+			vgptts()->get_registered_mappings()
+		);
+
+		remove_filter( 'vgptts_registered_mappings', $register );
+	}
+
+	/**
+	 * is_overridden() matches on either side of a registered mapping.
+	 */
+	public function test_is_overridden() {
+		$registered = [
+			[
+				'post_type' => 'post',
+				'taxonomy'  => 'category',
+			],
+		];
+
+		$this->assertTrue(
+			vgptts()->is_overridden(
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+				$registered
+			)
+		);
+		$this->assertTrue(
+			vgptts()->is_overridden(
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+				$registered
+			)
+		);
+		$this->assertFalse(
+			vgptts()->is_overridden(
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
+				],
+				$registered
+			)
+		);
+	}
+
+	/**
 	 * get_taxonomy_for_post_type()/get_post_type_for_taxonomy() resolve both directions.
 	 */
 	public function test_taxonomy_and_post_type_lookups() {

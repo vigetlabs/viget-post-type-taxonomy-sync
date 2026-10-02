@@ -46,7 +46,7 @@ $vgptts_get_taxonomy_label = function ( $slug ) use ( $taxonomies ) {
 				<?php echo esc_html( $vgptts_get_post_type_label( $mapping['post_type'] ) ); ?> (<?php echo esc_html( $mapping['post_type'] ); ?>)
 				<?php if ( function_exists( 'wp_get_tooltip' ) ) : ?>
 					<?php
-					echo wp_get_tooltip(
+					echo wp_get_tooltip( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core escapes the tooltip markup.
 						$vgptts_registered_note,
 						[
 							'icon'  => 'dashicons-lock',
