@@ -107,30 +107,15 @@ class Core {
 	}
 
 	/**
-	 * Gets sanitized mappings from the options table.
+	 * Gets all active mappings: registered in code first, then saved on the settings page.
+	 *
+	 * A post type and a taxonomy can each sync once, so a mapping that reuses one
+	 * already claimed by an earlier mapping is left out. See get_flagged_mappings().
 	 *
 	 * @return array
 	 */
 	public function get_mappings() {
-		$settings = $this->settings->get_settings();
-
-		if ( ! $settings ) {
-			return [];
-		}
-
-		$mappings = $settings['mappings'];
-		$result   = [];
-
-		foreach ( $mappings as $mapping ) {
-			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
-				continue;
-			}
-
-			$result[] = [
-				'post_type' => sanitize_key( $mapping['post_type'] ),
-				'taxonomy'  => sanitize_key( $mapping['taxonomy'] ),
-			];
-		}
+		$result = $this->resolve_mappings()['active'];
 
 		/**
 		 * Filters the resolved post type / taxonomy mappings.
@@ -138,6 +123,144 @@ class Core {
 		 * @param array $result The sanitized mappings, each an array with `post_type` and `taxonomy` keys.
 		 */
 		return apply_filters( 'vgptts_mappings', $result );
+	}
+
+	/**
+	 * Gets mappings left out of get_mappings() because an earlier mapping claimed their post type or taxonomy.
+	 *
+	 * Each has `post_type` and `taxonomy` keys, plus `source` (`registered` or `saved`)
+	 * and `conflict`, the active mapping that claimed it.
+	 *
+	 * @return array
+	 */
+	public function get_flagged_mappings(): array {
+		return $this->resolve_mappings()['flagged'];
+	}
+
+	/**
+	 * Splits registered and saved mappings into active and flagged, first claim wins.
+	 *
+	 * @return array{active: array, flagged: array}
+	 */
+	private function resolve_mappings(): array {
+		$active  = [];
+		$flagged = [];
+		$sources = [
+			'registered' => $this->get_registered_mappings(),
+			'saved'      => $this->get_saved_mappings(),
+		];
+
+		foreach ( $sources as $source => $mappings ) {
+			foreach ( $mappings as $mapping ) {
+				$conflict = $this->find_conflict( $mapping, $active );
+
+				if ( $conflict ) {
+					$flagged[] = $mapping + [
+						'source'   => $source,
+						'conflict' => $conflict,
+					];
+				} else {
+					$active[] = $mapping;
+				}
+			}
+		}
+
+		return [
+			'active'  => $active,
+			'flagged' => $flagged,
+		];
+	}
+
+	/**
+	 * Finds the first mapping that shares a post type or taxonomy with the given one.
+	 *
+	 * @param array $mapping  Mapping with `post_type` and `taxonomy` keys.
+	 * @param array $mappings Mappings to search.
+	 *
+	 * @return array|null
+	 */
+	public function find_conflict( array $mapping, array $mappings ): ?array {
+		foreach ( $mappings as $claimed ) {
+			if ( $claimed['post_type'] === $mapping['post_type'] || $claimed['taxonomy'] === $mapping['taxonomy'] ) {
+				return $claimed;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets sanitized mappings saved on the settings page.
+	 *
+	 * @return array
+	 */
+	public function get_saved_mappings(): array {
+		$settings = $this->settings->get_settings();
+
+		if ( ! $settings || empty( $settings['mappings'] ) ) {
+			return [];
+		}
+
+		return $this->sanitize_mappings( (array) $settings['mappings'] );
+	}
+
+	/**
+	 * Gets sanitized mappings registered in code.
+	 *
+	 * Registered mappings show on the settings page as locked rows that can be
+	 * synced but not edited or removed.
+	 *
+	 * @return array
+	 */
+	public function get_registered_mappings(): array {
+		/**
+		 * Filters the mappings registered in code.
+		 *
+		 * @param array $mappings Mappings, each an array with `post_type` and `taxonomy` keys.
+		 */
+		$mappings = apply_filters( 'vgptts_registered_mappings', [] );
+
+		return $this->sanitize_mappings( (array) $mappings );
+	}
+
+	/**
+	 * Whether a saved mapping is overridden by a registered mapping for the same post type or taxonomy.
+	 *
+	 * @param array      $mapping    Mapping with `post_type` and `taxonomy` keys.
+	 * @param array|null $registered Registered mappings. Defaults to get_registered_mappings().
+	 *
+	 * @return bool
+	 */
+	public function is_overridden( array $mapping, ?array $registered = null ): bool {
+		return null !== $this->find_conflict( $mapping, $registered ?? $this->get_registered_mappings() );
+	}
+
+	/**
+	 * Drops incomplete and duplicate mappings, and sanitizes slugs.
+	 *
+	 * @param array $mappings Raw mappings.
+	 *
+	 * @return array
+	 */
+	private function sanitize_mappings( array $mappings ): array {
+		$result = [];
+
+		foreach ( $mappings as $mapping ) {
+			if ( ! \is_array( $mapping ) || empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
+				continue;
+			}
+
+			$sanitized = [
+				'post_type' => sanitize_key( $mapping['post_type'] ),
+				'taxonomy'  => sanitize_key( $mapping['taxonomy'] ),
+			];
+
+			if ( ! \in_array( $sanitized, $result, true ) ) {
+				$result[] = $sanitized;
+			}
+		}
+
+		return $result;
 	}
 
 	/**

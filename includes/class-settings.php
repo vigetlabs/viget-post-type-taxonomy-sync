@@ -60,6 +60,7 @@ class Settings {
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'register_admin_assets' ] );
 		add_action( 'wp_ajax_vgptts_sync_mapping', [ $this, 'handle_ajax_sync_mapping' ] );
+		add_action( 'wp_ajax_vgptts_remove_mapping', [ $this, 'handle_ajax_remove_mapping' ] );
 	}
 
 	/**
@@ -155,6 +156,8 @@ class Settings {
 			return $sanitized;
 		}
 
+		$registered = vgptts()->get_registered_mappings();
+
 		foreach ( $input['mappings'] as $mapping ) {
 			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
 				continue;
@@ -164,6 +167,35 @@ class Settings {
 			$taxonomy  = sanitize_key( $mapping['taxonomy'] );
 
 			if ( ! post_type_exists( $post_type ) || ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+
+			$pair = [
+				'post_type' => $post_type,
+				'taxonomy'  => $taxonomy,
+			];
+
+			// Already registered in code or earlier in this save, so there's nothing to add.
+			if ( \in_array( $pair, $registered, true ) || \in_array( $pair, $sanitized['mappings'], true ) ) {
+				continue;
+			}
+
+			// A post type and a taxonomy can each sync once.
+			$conflict = vgptts()->find_conflict( $pair, $sanitized['mappings'] );
+			if ( $conflict ) {
+				add_settings_error(
+					self::OPTION_NAME,
+					"vgptts_conflict_{$post_type}_{$taxonomy}",
+					sprintf(
+						/* translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug */
+						__( 'Mapping "%1$s" to "%2$s" was not saved. "%3$s" to "%4$s" already uses that post type or taxonomy.', 'viget-post-type-taxonomy-sync' ),
+						$post_type,
+						$taxonomy,
+						$conflict['post_type'],
+						$conflict['taxonomy']
+					),
+					'error'
+				);
 				continue;
 			}
 
@@ -188,10 +220,7 @@ class Settings {
 				continue;
 			}
 
-			$sanitized['mappings'][] = [
-				'post_type' => $post_type,
-				'taxonomy'  => $taxonomy,
-			];
+			$sanitized['mappings'][] = $pair;
 		}
 
 		return $sanitized;
@@ -225,12 +254,21 @@ class Settings {
 		wp_enqueue_script( 'vgptts-mappings-field' );
 		wp_enqueue_style( 'vgptts-admin-styles' );
 
+		// Core tooltip for registered mappings (WordPress 7.1+).
+		if ( wp_script_is( 'wp-tooltip', 'registered' ) ) {
+			wp_enqueue_script( 'wp-tooltip' );
+			wp_enqueue_style( 'wp-tooltip' );
+		}
+
 		wp_localize_script(
 			'vgptts-mappings-field',
 			'vgpttsMappings',
 			[
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'vgptts_sync_mapping' ),
+				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( 'vgptts_sync_mapping' ),
+				'removeNonce'   => wp_create_nonce( 'vgptts_remove_mapping' ),
+				'confirmRemove' => __( 'Remove this mapping? Synced posts and terms are kept, but they stop syncing.', 'viget-post-type-taxonomy-sync' ),
+				'removeFailed'  => __( 'The mapping could not be removed. Reload the page and try again.', 'viget-post-type-taxonomy-sync' ),
 			]
 		);
 
@@ -277,13 +315,48 @@ class Settings {
 	}
 
 	/**
+	 * Removes a saved mapping via AJAX.
+	 *
+	 * @return void
+	 */
+	public function handle_ajax_remove_mapping(): void {
+		check_ajax_referer( 'vgptts_remove_mapping', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'viget-post-type-taxonomy-sync' ) ], 403 );
+		}
+
+		$post_type = isset( $_POST['post_type'] ) ? sanitize_key( wp_unslash( $_POST['post_type'] ) ) : '';
+		$taxonomy  = isset( $_POST['taxonomy'] ) ? sanitize_key( wp_unslash( $_POST['taxonomy'] ) ) : '';
+		$mappings  = $this->get_settings()['mappings'];
+		$remaining = array_filter(
+			(array) $mappings,
+			static function ( $mapping ) use ( $post_type, $taxonomy ): bool {
+				return ! \is_array( $mapping )
+					|| sanitize_key( $mapping['post_type'] ?? '' ) !== $post_type
+					|| sanitize_key( $mapping['taxonomy'] ?? '' ) !== $taxonomy;
+			}
+		);
+
+		if ( ! $post_type || ! $taxonomy || \count( $remaining ) === \count( (array) $mappings ) ) {
+			wp_send_json_error( [ 'message' => __( 'Mapping not found.', 'viget-post-type-taxonomy-sync' ) ], 404 );
+		}
+
+		update_option( self::OPTION_NAME, [ 'mappings' => array_values( $remaining ) ] );
+
+		wp_send_json_success( [ 'message' => __( 'Mapping removed.', 'viget-post-type-taxonomy-sync' ) ] );
+	}
+
+	/**
 	 * Renders the mappings field.
 	 *
 	 * @return void
 	 */
 	public function render_mappings_field() {
-		$settings = $this->get_settings();
-		$mappings = $settings['mappings'];
+		$settings   = $this->get_settings();
+		$mappings   = $settings['mappings'];
+		$flagged    = vgptts()->get_flagged_mappings();
+		$registered = $this->get_registered_rows( $flagged );
 
 		$post_types = get_post_types(
 			[
@@ -310,5 +383,105 @@ class Settings {
 		}
 
 		require VGPTTS_PLUGIN_PATH . 'views/admin/mappings-field.php';
+	}
+
+	/**
+	 * Gets registered mappings for the settings page, each with a `note` saying why it isn't synced, or null.
+	 *
+	 * @param array|null $flagged Flagged mappings. Defaults to vgptts()->get_flagged_mappings().
+	 *
+	 * @return array
+	 */
+	public function get_registered_rows( ?array $flagged = null ): array {
+		$flagged = $flagged ?? vgptts()->get_flagged_mappings();
+		$rows    = [];
+
+		foreach ( vgptts()->get_registered_mappings() as $mapping ) {
+			$rows[] = $mapping + [ 'note' => self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping ) ];
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Gets the note for a flagged mapping, or null when it isn't flagged.
+	 *
+	 * @param array  $mapping Mapping with `post_type` and `taxonomy` keys.
+	 * @param string $source  `registered` or `saved`.
+	 * @param array  $flagged Flagged mappings from vgptts()->get_flagged_mappings().
+	 *
+	 * @return string|null
+	 */
+	public static function get_flag_note( array $mapping, string $source, array $flagged ): ?string {
+		foreach ( $flagged as $flag ) {
+			if ( $source !== $flag['source'] || $flag['post_type'] !== $mapping['post_type'] || $flag['taxonomy'] !== $mapping['taxonomy'] ) {
+				continue;
+			}
+
+			$shares_taxonomy = $flag['conflict']['taxonomy'] === $mapping['taxonomy'];
+
+			return sprintf(
+				/* translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with */
+				__( 'Not synced: %1$s already syncs with %2$s.', 'viget-post-type-taxonomy-sync' ),
+				$shares_taxonomy ? self::get_taxonomy_label( $mapping['taxonomy'] ) : self::get_post_type_label( $mapping['post_type'] ),
+				$shares_taxonomy ? self::get_post_type_label( $flag['conflict']['post_type'] ) : self::get_taxonomy_label( $flag['conflict']['taxonomy'] )
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets the note for a registered mapping that can't sync on this site, or null when it can.
+	 *
+	 * Checked here rather than at registration, since post types and taxonomies may register after the filter runs.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string|null
+	 */
+	private static function get_invalid_note( array $mapping ): ?string {
+		$post_type_obj = get_post_type_object( $mapping['post_type'] );
+		$tax_obj       = get_taxonomy( $mapping['taxonomy'] );
+
+		if ( ! $post_type_obj ) {
+			/* translators: %s: post type slug */
+			return sprintf( __( 'Not synced: the "%s" post type is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['post_type'] );
+		}
+
+		if ( ! $tax_obj ) {
+			/* translators: %s: taxonomy slug */
+			return sprintf( __( 'Not synced: the "%s" taxonomy is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['taxonomy'] );
+		}
+
+		if ( $post_type_obj->hierarchical && ! $tax_obj->hierarchical ) {
+			return __( 'Not synced: a hierarchical post type cannot sync to a non-hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' );
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets a post type's singular name, or its slug when it isn't registered.
+	 *
+	 * @param string $slug Post type slug.
+	 *
+	 * @return string
+	 */
+	public static function get_post_type_label( string $slug ): string {
+		$object = get_post_type_object( $slug );
+		return $object->labels->singular_name ?? $slug;
+	}
+
+	/**
+	 * Gets a taxonomy's singular name, or its slug when it isn't registered.
+	 *
+	 * @param string $slug Taxonomy slug.
+	 *
+	 * @return string
+	 */
+	public static function get_taxonomy_label( string $slug ): string {
+		$object = get_taxonomy( $slug );
+		return $object ? $object->labels->singular_name : $slug;
 	}
 }
