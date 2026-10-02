@@ -13,7 +13,10 @@
 		return Array.prototype.filter.call(
 			tbody.querySelectorAll( 'tr' ),
 			function ( row ) {
-				return ! row.classList.contains( 'vgptts-row-template' );
+				return (
+					! row.classList.contains( 'vgptts-row-template' ) &&
+					! row.classList.contains( 'vgptts-row-registered' )
+				);
 			}
 		);
 	}
