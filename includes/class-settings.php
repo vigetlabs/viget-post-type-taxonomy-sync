@@ -60,6 +60,7 @@ class Settings {
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'register_admin_assets' ] );
 		add_action( 'wp_ajax_vgptts_sync_mapping', [ $this, 'handle_ajax_sync_mapping' ] );
+		add_action( 'wp_ajax_vgptts_remove_mapping', [ $this, 'handle_ajax_remove_mapping' ] );
 	}
 
 	/**
@@ -263,8 +264,11 @@ class Settings {
 			'vgptts-mappings-field',
 			'vgpttsMappings',
 			[
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'vgptts_sync_mapping' ),
+				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( 'vgptts_sync_mapping' ),
+				'removeNonce'   => wp_create_nonce( 'vgptts_remove_mapping' ),
+				'confirmRemove' => __( 'Remove this mapping? Synced posts and terms are kept, but they stop syncing.', 'viget-post-type-taxonomy-sync' ),
+				'removeFailed'  => __( 'The mapping could not be removed. Reload the page and try again.', 'viget-post-type-taxonomy-sync' ),
 			]
 		);
 
@@ -308,6 +312,39 @@ class Settings {
 		vgptts()->sync->sync_terms( $post_type, $taxonomy );
 
 		wp_send_json_success( [ 'message' => __( 'Sync completed.', 'viget-post-type-taxonomy-sync' ) ] );
+	}
+
+	/**
+	 * Removes a saved mapping via AJAX.
+	 *
+	 * @return void
+	 */
+	public function handle_ajax_remove_mapping(): void {
+		check_ajax_referer( 'vgptts_remove_mapping', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'viget-post-type-taxonomy-sync' ) ], 403 );
+		}
+
+		$post_type = isset( $_POST['post_type'] ) ? sanitize_key( wp_unslash( $_POST['post_type'] ) ) : '';
+		$taxonomy  = isset( $_POST['taxonomy'] ) ? sanitize_key( wp_unslash( $_POST['taxonomy'] ) ) : '';
+		$mappings  = $this->get_settings()['mappings'];
+		$remaining = array_filter(
+			(array) $mappings,
+			static function ( $mapping ) use ( $post_type, $taxonomy ): bool {
+				return ! \is_array( $mapping )
+					|| sanitize_key( $mapping['post_type'] ?? '' ) !== $post_type
+					|| sanitize_key( $mapping['taxonomy'] ?? '' ) !== $taxonomy;
+			}
+		);
+
+		if ( ! $post_type || ! $taxonomy || \count( $remaining ) === \count( (array) $mappings ) ) {
+			wp_send_json_error( [ 'message' => __( 'Mapping not found.', 'viget-post-type-taxonomy-sync' ) ], 404 );
+		}
+
+		update_option( self::OPTION_NAME, [ 'mappings' => array_values( $remaining ) ] );
+
+		wp_send_json_success( [ 'message' => __( 'Mapping removed.', 'viget-post-type-taxonomy-sync' ) ] );
 	}
 
 	/**

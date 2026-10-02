@@ -41,6 +41,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * Added the `vgptts_registered_mappings` filter to register mappings in code. Registered mappings show on the settings page as locked rows that can be synced but not edited or removed, and a saved mapping that uses the same post type or taxonomy is skipped.
 * A post type and a taxonomy can each sync once. A later mapping that reuses either is flagged as not synced on the settings page, the settings page hides post types and taxonomies that are already mapped, and saving rejects a mapping that reuses one.
 * Settings page: the lock for registered mappings has its own column, unsaved rows have a remove button, and the selects fill their cells.
+* Remove on a saved mapping asks for confirmation and removes it right away, with nothing left to save. Fixed: Remove did nothing when only one mapping was saved.
 * Added `get_registered_mappings()`, `get_saved_mappings()`, `get_flagged_mappings()`, `find_conflict()` and `is_overridden()` to `Core`.
 * Fixed: duplicate mappings are dropped when mappings are resolved and saved.
 

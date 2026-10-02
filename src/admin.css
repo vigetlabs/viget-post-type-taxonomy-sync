@@ -55,7 +55,8 @@ span.dashicons.vgptts-registered-icon {
 	font-size: 12px;
 }
 
-.vgptts-row-overridden .vgptts-row-note {
+.vgptts-row-overridden .vgptts-row-note,
+.vgptts-row-note.vgptts-remove-error {
 	color: #b32d2e;
 }
 

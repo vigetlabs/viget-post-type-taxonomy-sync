@@ -125,12 +125,66 @@
 		filterPendingRows();
 	}
 
+	function removeRow( row ) {
+		row.remove();
+		// Keep a blank row, so the form still posts the field on save.
+		if ( ! getDataRows().length ) {
+			addRow();
+		}
+		filterPendingRows();
+	}
+
+	// Saved mappings are removed on the server right away, so there's nothing left to save.
+	function removeSavedRow( button ) {
+		if (
+			typeof vgpttsMappings === 'undefined' ||
+			! window.confirm( vgpttsMappings.confirmRemove ) // eslint-disable-line no-alert
+		) {
+			return;
+		}
+
+		const row = button.closest( 'tr' );
+		const previousError = row.querySelector( '.vgptts-remove-error' );
+		if ( previousError ) {
+			previousError.remove();
+		}
+		button.disabled = true;
+
+		const formData = new FormData();
+		formData.append( 'action', 'vgptts_remove_mapping' );
+		formData.append( 'nonce', vgpttsMappings.removeNonce );
+		formData.append( 'post_type', row.getAttribute( 'data-post-type' ) );
+		formData.append( 'taxonomy', row.getAttribute( 'data-taxonomy' ) );
+
+		fetch( vgpttsMappings.ajaxUrl, {
+			method: 'POST',
+			body: formData,
+			credentials: 'same-origin',
+		} )
+			.then( function ( res ) {
+				return res.json();
+			} )
+			.then( function ( data ) {
+				if ( ! data.success ) {
+					throw new Error();
+				}
+				removeRow( row );
+			} )
+			.catch( function () {
+				button.disabled = false;
+				const error = document.createElement( 'span' );
+				error.className = 'vgptts-row-note vgptts-remove-error';
+				error.setAttribute( 'role', 'alert' );
+				error.textContent = vgpttsMappings.removeFailed;
+				row.querySelector( 'td' ).appendChild( error );
+			} );
+	}
+
 	function handleTableClick( event ) {
 		const discardButton =
 			event.target && event.target.closest( '.vgptts-discard-row' );
 		if ( discardButton ) {
-			discardButton.closest( 'tr' ).remove();
-			filterPendingRows();
+			removeRow( discardButton.closest( 'tr' ) );
 			return;
 		}
 
@@ -138,12 +192,7 @@
 			event.target &&
 			event.target.classList.contains( 'vgptts-remove-row' )
 		) {
-			event.target.closest( 'tr' ).remove();
-			// Keep a blank row, so the form still posts the field and the last mapping is cleared on save.
-			if ( ! getDataRows().length ) {
-				addRow();
-			}
-			filterPendingRows();
+			removeSavedRow( event.target );
 			return;
 		}
 
