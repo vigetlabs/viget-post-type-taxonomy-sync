@@ -11,7 +11,7 @@ vgptts()->get_mappings();
 
 ### `get_mappings(): array`
 
-Returns the sanitized list of configured mappings, each an array with `post_type` and `taxonomy` keys.
+Returns the sanitized list of active mappings, registered first and then saved, each an array with `post_type` and `taxonomy` keys.
 
 ```php
 foreach ( vgptts()->get_mappings() as $mapping ) {
@@ -70,6 +70,23 @@ Filters the resolved mappings array before it's used anywhere else in the plugin
 ```php
 add_filter(
 	'vgptts_mappings',
+	function ( array $mappings ): array {
+		$mappings[] = [
+			'post_type' => 'product',
+			'taxonomy'  => 'product-line',
+		];
+		return $mappings;
+	}
+);
+```
+
+### `vgptts_registered_mappings`
+
+Registers mappings in code. They're resolved before mappings saved on the settings page, and show there as locked rows that can be synced but not edited or removed. A saved mapping that uses the same post type or taxonomy is skipped.
+
+```php
+add_filter(
+	'vgptts_registered_mappings',
 	function ( array $mappings ): array {
 		$mappings[] = [
 			'post_type' => 'product',

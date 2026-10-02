@@ -3,7 +3,7 @@ Contributors: Viget
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 2.0.2
+Stable tag: 2.1.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,11 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * PHP 8.2+
 
 == Changelog ==
+
+= 2.1.0 =
+* Added the `vgptts_registered_mappings` filter to register mappings in code. Registered mappings show on the settings page as locked rows that can be synced but not edited or removed, and a saved mapping that uses the same post type or taxonomy is skipped.
+* Added `get_registered_mappings()`, `get_saved_mappings()` and `is_overridden()` to `Core`.
+* Fixed: duplicate mappings are dropped when mappings are resolved.
 
 = 2.0.2 =
 * Fixed: sync hooks are now registered regardless of the order a theme registers its post types and taxonomies. `register_hooks()` runs on `init` from plugin load, before a theme's own `init` callbacks, and it was gating on `post_type_exists()`/`taxonomy_exists()` - so every mapping was skipped and no sync hooks were ever added. Automatic syncing did not happen at all; only the manual **Sync** button worked. Validation moved into the handlers, where both are guaranteed to be registered.
