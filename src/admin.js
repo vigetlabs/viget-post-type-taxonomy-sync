@@ -138,14 +138,10 @@
 			event.target &&
 			event.target.classList.contains( 'vgptts-remove-row' )
 		) {
-			const row = event.target.closest( 'tr' );
-			const dataRows = getDataRows();
-			if ( dataRows.length > 1 ) {
-				row.remove();
-			} else {
-				row.querySelectorAll( 'select' ).forEach( function ( select ) {
-					select.value = '';
-				} );
+			event.target.closest( 'tr' ).remove();
+			// Keep a blank row, so the form still posts the field and the last mapping is cleared on save.
+			if ( ! getDataRows().length ) {
+				addRow();
 			}
 			filterPendingRows();
 			return;
