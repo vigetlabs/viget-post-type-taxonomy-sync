@@ -39,6 +39,7 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 
 = 2.1.1 =
 * Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.
+* Fixed: the block editor's "Add New" link was hidden in every taxonomy panel on a post type with a synced taxonomy, not just the synced one. It's now removed through the post's REST response for synced taxonomies only.
 
 = 2.1.0 =
 * Added the `vgptts_registered_mappings` filter to register mappings in code. Registered mappings show on the settings page as locked rows that can be synced but not edited or removed, and a saved mapping that uses the same post type or taxonomy is skipped.

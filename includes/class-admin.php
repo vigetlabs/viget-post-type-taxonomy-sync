@@ -47,6 +47,7 @@ class Admin {
 	 */
 	private function init() {
 		add_action( 'rest_api_init', [ $this, 'register_rest_terms_exclude_filter' ] );
+		add_action( 'rest_api_init', [ $this, 'register_rest_create_term_link_filter' ] );
 
 		if ( ! is_admin() ) {
 			return;
@@ -55,7 +56,6 @@ class Admin {
 		add_action( 'admin_menu', [ $this, 'hide_synced_taxonomy_submenus' ], 999 );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_hide_synced_taxonomy_submenu_css' ], 10 );
 		add_action( 'admin_enqueue_scripts', [ $this, 'maybe_hide_synced_taxonomy_metabox_add_new_ui' ] );
-		add_action( 'enqueue_block_editor_assets', [ $this, 'maybe_hide_block_editor_add_term_ui' ] );
 		add_action( 'wp_ajax_add-tag', [ $this, 'maybe_block_ajax_add_tag_for_synced_taxonomy' ], 0 );
 		add_filter( 'get_terms_args', [ $this, 'exclude_synced_term_from_terms_list' ], 10, 2 );
 	}
@@ -228,29 +228,41 @@ class Admin {
 	}
 
 	/**
-	 * Hide the "Add New Term" button in the block editor taxonomy panel for synced taxonomies.
+	 * Registers the REST filter that hides "Add New Term" in the block editor for synced taxonomies.
 	 *
 	 * @return void
 	 */
-	public function maybe_hide_block_editor_add_term_ui(): void {
-		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	public function register_rest_create_term_link_filter(): void {
+		foreach ( vgptts()->get_mappings() as $mapping ) {
+			$post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
 
-		if ( ! $screen || empty( $screen->post_type ) ) {
-			return;
+			if ( $post_type ) {
+				add_filter( "rest_prepare_{$post_type}", [ $this, 'remove_create_term_link' ], 10, 2 );
+			}
+		}
+	}
+
+	/**
+	 * Removes a post's create-term link for its synced taxonomies.
+	 *
+	 * The block editor only shows a taxonomy panel's "Add New Term" button when
+	 * the post has this link.
+	 *
+	 * @param \WP_REST_Response $response The post's REST response.
+	 * @param \WP_Post          $post     The post.
+	 *
+	 * @return \WP_REST_Response
+	 */
+	public function remove_create_term_link( \WP_REST_Response $response, \WP_Post $post ): \WP_REST_Response {
+		foreach ( $this->get_synced_taxonomies_for_post_type( $post->post_type ) as $taxonomy ) {
+			$taxonomy_object = get_taxonomy( $taxonomy );
+
+			if ( $taxonomy_object ) {
+				$response->remove_link( 'https://api.w.org/action-create-' . ( $taxonomy_object->rest_base ? $taxonomy_object->rest_base : $taxonomy ) );
+			}
 		}
 
-		$taxonomies = $this->get_synced_taxonomies_for_post_type( $screen->post_type );
-
-		if ( empty( $taxonomies ) ) {
-			return;
-		}
-
-		$css = '.editor-post-taxonomies__hierarchical-terms-add{display:none !important;}';
-		if ( ! wp_style_is( 'vgptts-block-editor-inline', 'registered' ) ) {
-			wp_register_style( 'vgptts-block-editor-inline', false, [], VGPTTS_PLUGIN_VERSION );
-		}
-		wp_enqueue_style( 'vgptts-block-editor-inline' );
-		wp_add_inline_style( 'vgptts-block-editor-inline', $css );
+		return $response;
 	}
 
 	/**

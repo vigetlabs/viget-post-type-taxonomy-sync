@@ -194,4 +194,40 @@ class AdminTest extends VGPTTS_TestCase {
 
 		$this->assertContains( $term_id, $args['exclude'] );
 	}
+
+	/**
+	 * Fetches a post through the REST API in the edit context, as the block editor does.
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return array Link relations on the response.
+	 */
+	protected function get_post_links( int $post_id ): array {
+		$request = new WP_REST_Request( 'GET', rest_get_route_for_post( $post_id ) );
+		$request->set_param( 'context', 'edit' );
+
+		return array_keys( rest_get_server()->dispatch( $request )->get_links() );
+	}
+
+	/**
+	 * The block editor's "Add New Term" link is removed for synced taxonomies only.
+	 */
+	public function test_remove_create_term_link_only_for_synced_taxonomies() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
+		do_action( 'rest_api_init', rest_get_server() );
+
+		$links = $this->get_post_links( self::factory()->post->create() );
+
+		$this->assertNotContains( 'https://api.w.org/action-create-tags', $links );
+		$this->assertContains( 'https://api.w.org/action-create-categories', $links );
+	}
 }
