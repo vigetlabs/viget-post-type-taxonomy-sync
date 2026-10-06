@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-02T20:48:43+00:00\n"
+"POT-Creation-Date: 2026-10-06T14:38:45+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: viget-post-type-taxonomy-sync\n"
@@ -39,7 +39,7 @@ msgstr ""
 msgid "https://www.viget.com/"
 msgstr ""
 
-#: includes/class-admin.php:277
+#: includes/class-admin.php:271
 msgid "This taxonomy is managed automatically and does not allow adding new terms here."
 msgstr ""
 
@@ -51,32 +51,36 @@ msgstr ""
 msgid "No changelog available."
 msgstr ""
 
-#: includes/class-rest.php:135
+#: includes/class-rest.php:141
 msgid "Post not found."
 msgstr ""
 
-#: includes/class-rest.php:146
-#: includes/class-rest.php:240
+#: includes/class-rest.php:152
+#: includes/class-rest.php:257
 msgid "Sorry, you are not allowed to view this post."
 msgstr ""
 
-#: includes/class-rest.php:164
+#: includes/class-rest.php:170
 msgid "Term not found."
 msgstr ""
 
-#: includes/class-rest.php:177
+#: includes/class-rest.php:183
 msgid "Sorry, you are not allowed to view this term."
 msgstr ""
 
-#: includes/class-rest.php:198
+#: includes/class-rest.php:206
 msgid "This post type is not mapped to a taxonomy."
 msgstr ""
 
-#: includes/class-rest.php:209
+#: includes/class-rest.php:214
+msgid "This post type syncs to more than one taxonomy. Pass the taxonomy to look up."
+msgstr ""
+
+#: includes/class-rest.php:226
 msgid "This post does not have a synced term yet."
 msgstr ""
 
-#: includes/class-rest.php:232
+#: includes/class-rest.php:249
 msgid "This term does not have a synced post."
 msgstr ""
 
@@ -88,85 +92,85 @@ msgstr ""
 msgid "Mappings"
 msgstr ""
 
-#. translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug
+#. translators: 1: post type slug, 2: taxonomy slug, 3: post type slug the taxonomy already syncs with
 #: includes/class-settings.php:191
 #, php-format
-msgid "Mapping \"%1$s\" to \"%2$s\" was not saved. \"%3$s\" to \"%4$s\" already uses that post type or taxonomy."
+msgid "Mapping \"%1$s\" to \"%2$s\" was not saved. \"%2$s\" already syncs with \"%3$s\"."
 msgstr ""
 
 #. translators: 1: post type slug, 2: taxonomy slug
-#: includes/class-settings.php:214
+#: includes/class-settings.php:213
 #, php-format
 msgid "Cannot sync hierarchical post type \"%1$s\" to non-hierarchical taxonomy \"%2$s\". Please choose a hierarchical taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:236
+#: includes/class-settings.php:235
 #: views/admin/settings.php:15
 msgid "Post Type Taxonomy Sync"
 msgstr ""
 
-#: includes/class-settings.php:237
+#: includes/class-settings.php:236
 msgid "Post/Tax Sync"
 msgstr ""
 
-#: includes/class-settings.php:270
+#: includes/class-settings.php:269
 msgid "Remove this mapping? Synced posts and terms are kept, but they stop syncing."
 msgstr ""
 
-#: includes/class-settings.php:271
+#: includes/class-settings.php:270
 msgid "The mapping could not be removed. Reload the page and try again."
 msgstr ""
 
-#: includes/class-settings.php:272
+#: includes/class-settings.php:271
 msgid "Dismiss this notice."
 msgstr ""
 
-#: includes/class-settings.php:288
-#: includes/class-settings.php:327
+#: includes/class-settings.php:287
+#: includes/class-settings.php:326
 msgid "Permission denied."
 msgstr ""
 
-#: includes/class-settings.php:295
+#: includes/class-settings.php:294
 msgid "Invalid post type or taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:307
+#: includes/class-settings.php:306
 msgid "Cannot sync a hierarchical post type to a non-hierarchical taxonomy. Choose a hierarchical taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:315
+#: includes/class-settings.php:314
 msgid "Sync completed."
 msgstr ""
 
-#: includes/class-settings.php:343
+#: includes/class-settings.php:342
 msgid "Mapping not found."
 msgstr ""
 
 #. translators: 1: post type name, 2: taxonomy name
-#: includes/class-settings.php:352
+#: includes/class-settings.php:351
 #, php-format
 msgid "Mapping removed: %1$s → %2$s."
 msgstr ""
 
-#. translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with
-#: includes/class-settings.php:435
+#. translators: 1: taxonomy name, 2: the post type it already syncs with
+#: includes/class-settings.php:432
 #, php-format
 msgid "Not synced: %1$s already syncs with %2$s."
 msgstr ""
 
 #. translators: %s: post type slug
-#: includes/class-settings.php:459
+#: includes/class-settings.php:456
 #, php-format
 msgid "Not synced: the \"%s\" post type is not registered."
 msgstr ""
 
 #. translators: %s: taxonomy slug
-#: includes/class-settings.php:464
+#: includes/class-settings.php:461
 #, php-format
 msgid "Not synced: the \"%s\" taxonomy is not registered."
 msgstr ""
 
-#: includes/class-settings.php:468
+#: includes/class-settings.php:465
 msgid "Not synced: a hierarchical post type cannot sync to a non-hierarchical taxonomy."
 msgstr ""
 
