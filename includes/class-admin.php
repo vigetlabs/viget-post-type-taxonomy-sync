@@ -68,25 +68,7 @@ class Admin {
 	 * @return string[]
 	 */
 	protected function get_synced_taxonomies_for_post_type( string $post_type ): array {
-		$result   = [];
-		$mappings = vgptts()->get_mappings();
-
-		foreach ( $mappings as $mapping ) {
-			$mapped_post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
-			$taxonomy         = isset( $mapping['taxonomy'] ) ? sanitize_key( $mapping['taxonomy'] ) : '';
-
-			if ( ! $mapped_post_type || ! $taxonomy ) {
-				continue;
-			}
-
-			if ( $mapped_post_type !== $post_type ) {
-				continue;
-			}
-
-			$result[] = $taxonomy;
-		}
-
-		return array_values( array_unique( $result ) );
+		return vgptts()->get_taxonomies_for_post_type( $post_type );
 	}
 
 	/**
@@ -334,17 +316,12 @@ class Admin {
 			return $prepared_args;
 		}
 
-		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
-		if ( ! $taxonomy_for_type ) {
-			return $prepared_args;
-		}
-
 		$request_taxonomy = $this->get_taxonomy_from_rest_route( $request );
-		if ( $request_taxonomy !== $taxonomy_for_type ) {
+		if ( ! \in_array( $request_taxonomy, $this->get_synced_taxonomies_for_post_type( $post->post_type ), true ) ) {
 			return $prepared_args;
 		}
 
-		$synced_term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$synced_term_id = (int) vgptts()->get_term_id_for_post( $post_id, $request_taxonomy );
 		if ( $synced_term_id <= 0 ) {
 			return $prepared_args;
 		}
@@ -458,19 +435,17 @@ class Admin {
 			return $args;
 		}
 
-		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
-		if ( ! $taxonomy_for_type || ! \in_array( $taxonomy_for_type, $taxonomies, true ) ) {
-			return $args;
+		$exclude = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
+
+		foreach ( array_intersect( $this->get_synced_taxonomies_for_post_type( $post->post_type ), $taxonomies ) as $taxonomy ) {
+			$exclude[] = (int) vgptts()->get_term_id_for_post( $post_id, $taxonomy );
 		}
 
-		$synced_term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
-		if ( $synced_term_id <= 0 ) {
-			return $args;
-		}
+		$exclude = array_unique( array_filter( $exclude ) );
 
-		$exclude         = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
-		$exclude[]       = $synced_term_id;
-		$args['exclude'] = array_unique( array_filter( $exclude ) );
+		if ( $exclude ) {
+			$args['exclude'] = $exclude;
+		}
 
 		return $args;
 	}

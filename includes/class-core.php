@@ -20,7 +20,7 @@ class Core {
 	const OPTION_NAME = 'vgptts_settings';
 
 	/**
-	 * Meta key for storing related term ID on a post.
+	 * Prefix of the post meta key that stores a post's synced term ID, one per taxonomy. See get_post_meta_key().
 	 */
 	const POST_META_KEY = '_vgptts_term_id';
 
@@ -65,6 +65,13 @@ class Core {
 	private ?REST $rest = null;
 
 	/**
+	 * Upgrade instance.
+	 *
+	 * @var Upgrade|null
+	 */
+	private ?Upgrade $upgrade = null;
+
+	/**
 	 * Get the singleton instance.
 	 *
 	 * @return Core
@@ -94,6 +101,7 @@ class Core {
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-sync.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-admin.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-rest.php';
+		require_once VGPTTS_PLUGIN_PATH . 'includes/class-upgrade.php';
 		require_once VGPTTS_PLUGIN_PATH . 'includes/class-github-plugin-updater.php';
 
 		// Initialize dependencies.
@@ -101,6 +109,7 @@ class Core {
 		$this->sync     = Sync::get_instance();
 		$this->admin    = Admin::get_instance();
 		$this->rest     = REST::get_instance();
+		$this->upgrade  = Upgrade::get_instance();
 
 		// Check for plugin updates from GitHub releases.
 		new GitHub_Plugin_Updater( VGPTTS_PLUGIN_FILE, 'vigetlabs', 'viget-post-type-taxonomy-sync' );
@@ -109,8 +118,9 @@ class Core {
 	/**
 	 * Gets all active mappings: registered in code first, then saved on the settings page.
 	 *
-	 * A post type and a taxonomy can each sync once, so a mapping that reuses one
-	 * already claimed by an earlier mapping is left out. See get_flagged_mappings().
+	 * A post type can sync to several taxonomies, but a taxonomy syncs to one post
+	 * type, so a mapping that reuses a taxonomy already claimed by an earlier
+	 * mapping is left out. See get_flagged_mappings().
 	 *
 	 * @return array
 	 */
@@ -126,7 +136,7 @@ class Core {
 	}
 
 	/**
-	 * Gets mappings left out of get_mappings() because an earlier mapping claimed their post type or taxonomy.
+	 * Gets mappings left out of get_mappings() because an earlier mapping claimed their taxonomy.
 	 *
 	 * Each has `post_type` and `taxonomy` keys, plus `source` (`registered` or `saved`)
 	 * and `conflict`, the active mapping that claimed it.
@@ -172,7 +182,9 @@ class Core {
 	}
 
 	/**
-	 * Finds the first mapping that shares a post type or taxonomy with the given one.
+	 * Finds the first mapping that shares a taxonomy with the given one.
+	 *
+	 * A taxonomy syncs to one post type. A post type can sync to several taxonomies.
 	 *
 	 * @param array $mapping  Mapping with `post_type` and `taxonomy` keys.
 	 * @param array $mappings Mappings to search.
@@ -181,7 +193,7 @@ class Core {
 	 */
 	public function find_conflict( array $mapping, array $mappings ): ?array {
 		foreach ( $mappings as $claimed ) {
-			if ( $claimed['post_type'] === $mapping['post_type'] || $claimed['taxonomy'] === $mapping['taxonomy'] ) {
+			if ( $claimed['taxonomy'] === $mapping['taxonomy'] ) {
 				return $claimed;
 			}
 		}
@@ -224,7 +236,7 @@ class Core {
 	}
 
 	/**
-	 * Whether a saved mapping is overridden by a registered mapping for the same post type or taxonomy.
+	 * Whether a saved mapping is overridden by a registered mapping for the same taxonomy.
 	 *
 	 * @param array      $mapping    Mapping with `post_type` and `taxonomy` keys.
 	 * @param array|null $registered Registered mappings. Defaults to get_registered_mappings().
@@ -264,22 +276,69 @@ class Core {
 	}
 
 	/**
-	 * Finds the mapped taxonomy for a given post type.
+	 * Finds the taxonomies mapped to a given post type, in mapping order.
+	 *
+	 * @param string $post_type Post type slug.
+	 *
+	 * @return string[]
+	 */
+	public function get_taxonomies_for_post_type( string $post_type ): array {
+		$taxonomies = [];
+
+		foreach ( $this->get_mappings() as $mapping ) {
+			if ( $mapping['post_type'] === $post_type ) {
+				$taxonomies[] = $mapping['taxonomy'];
+			}
+		}
+
+		return array_values( array_unique( $taxonomies ) );
+	}
+
+	/**
+	 * Finds the first taxonomy mapped to a given post type.
+	 *
+	 * A post type can map to several taxonomies. Use get_taxonomies_for_post_type() for all of them.
 	 *
 	 * @param string $post_type Post type slug.
 	 *
 	 * @return string|null
 	 */
 	public function get_taxonomy_for_post_type( $post_type ) {
-		$mappings = $this->get_mappings();
+		return $this->get_taxonomies_for_post_type( (string) $post_type )[0] ?? null;
+	}
 
-		foreach ( $mappings as $mapping ) {
-			if ( $mapping['post_type'] === $post_type ) {
-				return $mapping['taxonomy'];
-			}
+	/**
+	 * Gets the post meta key that stores a post's synced term ID in a taxonomy.
+	 *
+	 * @param string $taxonomy Taxonomy slug.
+	 *
+	 * @return string
+	 */
+	public function get_post_meta_key( string $taxonomy ): string {
+		return self::POST_META_KEY . '_' . $taxonomy;
+	}
+
+	/**
+	 * Gets a post's synced term ID in a taxonomy.
+	 *
+	 * Until Upgrade has moved a site's data to per-taxonomy keys, the term may
+	 * still be under the old single key, so that's checked too.
+	 *
+	 * @param int    $post_id  Post ID.
+	 * @param string $taxonomy Taxonomy slug.
+	 *
+	 * @return int|null Term ID or null if the post has no synced term in that taxonomy.
+	 */
+	public function get_term_id_for_post( int $post_id, string $taxonomy ): ?int {
+		$term_id = (int) get_post_meta( $post_id, $this->get_post_meta_key( $taxonomy ), true );
+
+		if ( ! $term_id && ! Upgrade::is_current() ) {
+			$legacy_id = (int) get_post_meta( $post_id, self::POST_META_KEY, true );
+			$term      = $legacy_id ? get_term( $legacy_id ) : null;
+			$term_id   = $term instanceof \WP_Term && $term->taxonomy === $taxonomy ? $legacy_id : 0;
 		}
 
-		return null;
+		return $term_id ? $term_id : null;
 	}
 
 	/**
