@@ -42,9 +42,9 @@
 		};
 	}
 
-	// Post types and taxonomies used by every other row. Flagged rows don't sync, so they don't count.
+	// Taxonomies used by every other row. Flagged rows don't sync, so they don't count.
 	function getTaken( exceptRow ) {
-		const taken = { postTypes: [], taxonomies: [] };
+		const taken = [];
 		tbody.querySelectorAll( 'tr' ).forEach( function ( row ) {
 			if (
 				row === exceptRow ||
@@ -54,11 +54,8 @@
 				return;
 			}
 			const pair = getRowPair( row );
-			if ( pair.postType ) {
-				taken.postTypes.push( pair.postType );
-			}
 			if ( pair.taxonomy ) {
-				taken.taxonomies.push( pair.taxonomy );
+				taken.push( pair.taxonomy );
 			}
 		} );
 		return taken;
@@ -74,7 +71,7 @@
 		} );
 	}
 
-	// A post type and a taxonomy can each sync once, so hide any another row already uses.
+	// A taxonomy syncs to one post type, so hide any another row already uses. Post types can repeat.
 	function filterPendingRows() {
 		tbody.querySelectorAll( 'tr' ).forEach( function ( row ) {
 			const selects = getRowSelects( row );
@@ -85,9 +82,7 @@
 			) {
 				return;
 			}
-			const taken = getTaken( row );
-			toggleOptions( selects.postType, taken.postTypes );
-			toggleOptions( selects.taxonomy, taken.taxonomies );
+			toggleOptions( selects.taxonomy, getTaken( row ) );
 		} );
 	}
 

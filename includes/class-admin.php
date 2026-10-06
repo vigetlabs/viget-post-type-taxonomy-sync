@@ -22,6 +22,13 @@ class Admin {
 	private static ?Admin $instance = null;
 
 	/**
+	 * Whether get_hidden_term_ids() is reading a post's terms, so the terms list filter skips that query.
+	 *
+	 * @var bool
+	 */
+	private bool $is_reading_terms = false;
+
+	/**
 	 * Get the singleton instance.
 	 *
 	 * @return Admin
@@ -68,25 +75,7 @@ class Admin {
 	 * @return string[]
 	 */
 	protected function get_synced_taxonomies_for_post_type( string $post_type ): array {
-		$result   = [];
-		$mappings = vgptts()->get_mappings();
-
-		foreach ( $mappings as $mapping ) {
-			$mapped_post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
-			$taxonomy         = isset( $mapping['taxonomy'] ) ? sanitize_key( $mapping['taxonomy'] ) : '';
-
-			if ( ! $mapped_post_type || ! $taxonomy ) {
-				continue;
-			}
-
-			if ( $mapped_post_type !== $post_type ) {
-				continue;
-			}
-
-			$result[] = $taxonomy;
-		}
-
-		return array_values( array_unique( $result ) );
+		return vgptts()->get_taxonomies_for_post_type( $post_type );
 	}
 
 	/**
@@ -98,6 +87,42 @@ class Admin {
 	 */
 	protected function is_synced_taxonomy( string $taxonomy ): bool {
 		return ! empty( vgptts()->get_post_type_for_taxonomy( $taxonomy ) );
+	}
+
+	/**
+	 * Gets a synced taxonomy's terms to leave out of a post's term lists.
+	 *
+	 * That's the post's own term, and terms whose post isn't published. A term the
+	 * post already has stays listed, or the classic meta box would drop it on save.
+	 *
+	 * @param string   $taxonomy Synced taxonomy slug.
+	 * @param int|null $post_id  Post being edited, if any.
+	 *
+	 * @return int[]
+	 */
+	protected function get_hidden_term_ids( string $taxonomy, ?int $post_id ): array {
+		$hidden = vgptts()->get_unpublished_term_ids( $taxonomy );
+		$post   = $post_id ? get_post( $post_id ) : null;
+
+		if ( ! $post ) {
+			return $hidden;
+		}
+
+		if ( $hidden ) {
+			$this->is_reading_terms = true;
+			$assigned               = wp_get_object_terms( $post->ID, $taxonomy, [ 'fields' => 'ids' ] );
+			$this->is_reading_terms = false;
+
+			if ( ! is_wp_error( $assigned ) ) {
+				$hidden = array_diff( $hidden, array_map( 'intval', $assigned ) );
+			}
+		}
+
+		if ( \in_array( $taxonomy, $this->get_synced_taxonomies_for_post_type( $post->post_type ), true ) ) {
+			$hidden[] = (int) vgptts()->get_term_id_for_post( $post->ID, $taxonomy );
+		}
+
+		return array_values( array_unique( array_filter( $hidden ) ) );
 	}
 
 	/**
@@ -313,10 +338,11 @@ class Admin {
 	}
 
 	/**
-	 * Excludes the current post's synced term from REST terms listing (block editor).
+	 * Excludes hidden terms from a synced taxonomy's REST terms listing (block editor).
 	 *
-	 * When the block editor fetches terms, the request Referer is the post edit URL.
-	 * We parse the post ID and exclude that post's synced term from the response.
+	 * Terms whose post isn't published are left out. When the block editor fetches
+	 * terms, the request Referer is the post edit URL, so that post's own term is
+	 * left out too, and terms it already has are kept. See get_hidden_term_ids().
 	 *
 	 * @param array            $prepared_args Arguments for the term query.
 	 * @param \WP_REST_Request $request       REST request.
@@ -324,34 +350,18 @@ class Admin {
 	 * @return array Modified arguments.
 	 */
 	public function exclude_synced_term_in_rest_terms_query( array $prepared_args, \WP_REST_Request $request ): array {
-		$post_id = $this->get_post_id_from_referer();
-		if ( ! $post_id ) {
+		$taxonomy = $this->get_taxonomy_from_rest_route( $request );
+
+		if ( ! $taxonomy || ! $this->is_synced_taxonomy( $taxonomy ) ) {
 			return $prepared_args;
 		}
 
-		$post = get_post( $post_id );
-		if ( ! $post || ! $post->post_type ) {
-			return $prepared_args;
-		}
+		$hidden = $this->get_hidden_term_ids( $taxonomy, $this->get_post_id_from_referer() );
 
-		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
-		if ( ! $taxonomy_for_type ) {
-			return $prepared_args;
+		if ( $hidden ) {
+			$exclude                  = isset( $prepared_args['exclude'] ) ? (array) $prepared_args['exclude'] : [];
+			$prepared_args['exclude'] = array_values( array_unique( array_filter( array_merge( $exclude, $hidden ) ) ) );
 		}
-
-		$request_taxonomy = $this->get_taxonomy_from_rest_route( $request );
-		if ( $request_taxonomy !== $taxonomy_for_type ) {
-			return $prepared_args;
-		}
-
-		$synced_term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
-		if ( $synced_term_id <= 0 ) {
-			return $prepared_args;
-		}
-
-		$exclude                  = isset( $prepared_args['exclude'] ) ? (array) $prepared_args['exclude'] : [];
-		$exclude[]                = $synced_term_id;
-		$prepared_args['exclude'] = array_unique( array_filter( $exclude ) );
 
 		return $prepared_args;
 	}
@@ -420,11 +430,11 @@ class Admin {
 	}
 
 	/**
-	 * Excludes the current post's synced term from the taxonomy terms list in the sidebar.
+	 * Excludes hidden terms from synced taxonomy term lists on the post edit screen.
 	 *
-	 * When editing a post whose post type is synced to a taxonomy, the term that represents
-	 * this post is hidden from the taxonomy meta box so the post cannot be associated with
-	 * its own synced term.
+	 * The post's own term is hidden so the post can't be associated with itself, and so
+	 * are terms whose post isn't published, unless the post already has them. See
+	 * get_hidden_term_ids().
 	 *
 	 * @param array $args       Array of get_terms() arguments.
 	 * @param array $taxonomies Array of taxonomy names being queried.
@@ -432,7 +442,7 @@ class Admin {
 	 * @return array Modified arguments.
 	 */
 	public function exclude_synced_term_from_terms_list( array $args, array $taxonomies ): array {
-		if ( ! is_admin() ) {
+		if ( ! is_admin() || $this->is_reading_terms ) {
 			return $args;
 		}
 
@@ -458,19 +468,17 @@ class Admin {
 			return $args;
 		}
 
-		$taxonomy_for_type = vgptts()->get_taxonomy_for_post_type( $post->post_type );
-		if ( ! $taxonomy_for_type || ! \in_array( $taxonomy_for_type, $taxonomies, true ) ) {
-			return $args;
+		$exclude = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
+
+		foreach ( array_filter( $taxonomies, [ $this, 'is_synced_taxonomy' ] ) as $taxonomy ) {
+			$exclude = array_merge( $exclude, $this->get_hidden_term_ids( $taxonomy, $post_id ) );
 		}
 
-		$synced_term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
-		if ( $synced_term_id <= 0 ) {
-			return $args;
-		}
+		$exclude = array_unique( array_filter( $exclude ) );
 
-		$exclude         = isset( $args['exclude'] ) ? (array) $args['exclude'] : [];
-		$exclude[]       = $synced_term_id;
-		$args['exclude'] = array_unique( array_filter( $exclude ) );
+		if ( $exclude ) {
+			$args['exclude'] = $exclude;
+		}
 
 		return $args;
 	}
