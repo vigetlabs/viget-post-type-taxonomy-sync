@@ -72,6 +72,13 @@ class Core {
 	private ?Upgrade $upgrade = null;
 
 	/**
+	 * Unpublished term IDs per taxonomy, for this request.
+	 *
+	 * @var array<string, int[]>
+	 */
+	private array $unpublished_term_ids = [];
+
+	/**
 	 * Get the singleton instance.
 	 *
 	 * @return Core
@@ -342,6 +349,56 @@ class Core {
 	}
 
 	/**
+	 * Gets the IDs of a synced taxonomy's terms whose post isn't published.
+	 *
+	 * A trashed or unpublished post keeps its term, so restoring it brings back
+	 * every relationship. The term is only removed when the post is deleted.
+	 *
+	 * @param string $taxonomy Taxonomy slug.
+	 *
+	 * @return int[]
+	 */
+	public function get_unpublished_term_ids( string $taxonomy ): array {
+		$post_type = $this->get_post_type_for_taxonomy( $taxonomy );
+
+		if ( ! $post_type ) {
+			return [];
+		}
+
+		// Recomputed whenever any post changes.
+		$cache_key = $taxonomy . ':' . wp_cache_get_last_changed( 'posts' );
+
+		if ( isset( $this->unpublished_term_ids[ $cache_key ] ) ) {
+			return $this->unpublished_term_ids[ $cache_key ];
+		}
+
+		$meta_query = [ [ 'key' => $this->get_post_meta_key( $taxonomy ) ] ];
+
+		if ( ! Upgrade::is_current() ) {
+			$meta_query[]           = [ 'key' => self::POST_META_KEY ];
+			$meta_query['relation'] = 'OR';
+		}
+
+		$post_ids = get_posts(
+			[
+				'post_type'        => $post_type,
+				'post_status'      => array_values( array_diff( get_post_stati(), [ 'publish', 'auto-draft', 'inherit' ] ) ),
+				'posts_per_page'   => -1,
+				'no_found_rows'    => true,
+				'fields'           => 'ids',
+				'meta_query'       => $meta_query, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Only posts linked to a term.
+				'suppress_filters' => true,
+			]
+		);
+
+		$term_ids = array_filter( array_map( fn( $post_id ) => (int) $this->get_term_id_for_post( (int) $post_id, $taxonomy ), $post_ids ) );
+
+		$this->unpublished_term_ids[ $cache_key ] = array_values( array_unique( $term_ids ) );
+
+		return $this->unpublished_term_ids[ $cache_key ];
+	}
+
+	/**
 	 * Finds the mapped post type for a given taxonomy.
 	 *
 	 * @param string $taxonomy Taxonomy slug.
@@ -361,7 +418,9 @@ class Core {
 	}
 
 	/**
-	 * Gets the post IDs related to a post through its synced taxonomy terms.
+	 * Gets the published post IDs related to a post through its synced taxonomy terms.
+	 *
+	 * A related post that's trashed or unpublished is left out until it's published again.
 	 *
 	 * @param int    $post_id  Post ID.
 	 * @param string $taxonomy Taxonomy slug.
@@ -379,7 +438,7 @@ class Core {
 
 		foreach ( $related_terms as $related_term ) {
 			$related_post_id = get_term_meta( $related_term->term_id, self::TERM_META_KEY, true );
-			if ( ! $related_post_id ) {
+			if ( ! $related_post_id || 'publish' !== get_post_status( (int) $related_post_id ) ) {
 				continue;
 			}
 

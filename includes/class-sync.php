@@ -491,7 +491,7 @@ class Sync {
 			$this->upsert_term_for_post( $post, $taxonomy );
 		}
 
-		// 2. Remove terms that reference a missing, wrong-type, or trashed post.
+		// 2. Remove terms that reference a missing or wrong-type post. A trashed post keeps its term until it's deleted.
 		$terms = get_terms(
 			[
 				'taxonomy'   => $taxonomy,
@@ -508,7 +508,7 @@ class Sync {
 				}
 
 				$post = get_post( $post_id );
-				if ( ! $post || $post->post_type !== $post_type || 'trash' === $post->post_status ) {
+				if ( ! $post || $post->post_type !== $post_type ) {
 					wp_delete_term( $term_id, $taxonomy );
 				}
 			}

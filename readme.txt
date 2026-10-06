@@ -44,6 +44,7 @@ Viget Post Type Taxonomy Sync keeps a post type mirrored in one or more taxonomi
 * Added `get_taxonomies_for_post_type()`, `get_term_id_for_post()` and `get_post_meta_key()` to `Core`. `get_taxonomy_for_post_type()` returns the first mapped taxonomy.
 * `GET /vgptts/v1/posts/{id}/synced-term` takes an optional `taxonomy` param, required when the post type syncs to several.
 * `find_conflict()` and `is_overridden()` only match on taxonomy.
+* A trashed or unpublished post keeps its term and relationships until it's deleted permanently, so restoring it brings them back. While it isn't published, its term is hidden from the editor's term lists (unless a post already has it) and the post is left out of `get_related_post_ids_for_post()`. The Sync button no longer deletes a trashed post's term. Added `Core::get_unpublished_term_ids()`.
 
 = 2.1.1 =
 * Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.

@@ -118,9 +118,9 @@ class OneToManyTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * A full sync removes a trashed post's term from each mapping it runs on.
+	 * A full sync keeps a trashed post's terms in each mapping it runs on.
 	 */
-	public function test_sync_terms_removes_a_trashed_posts_terms_in_each_taxonomy() {
+	public function test_sync_terms_keeps_a_trashed_posts_terms_in_each_taxonomy() {
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
 		$tag_id  = $this->term_id( $post_id, 'post_tag' );
 		$cat_id  = $this->term_id( $post_id, 'category' );
@@ -130,8 +130,8 @@ class OneToManyTest extends VGPTTS_TestCase {
 		vgptts()->sync->sync_terms( 'post', 'post_tag' );
 		vgptts()->sync->sync_terms( 'post', 'category' );
 
-		$this->assertNull( term_exists( $tag_id, 'post_tag' ) );
-		$this->assertNull( term_exists( $cat_id, 'category' ) );
+		$this->assertNotNull( term_exists( $tag_id, 'post_tag' ) );
+		$this->assertNotNull( term_exists( $cat_id, 'category' ) );
 	}
 
 	/**

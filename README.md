@@ -15,6 +15,7 @@ Keeps a post type and a taxonomy in sync automatically: publish a post and a mat
 
 - Define any number of post type ↔ taxonomy mappings from **Settings → Post/Tax Sync**, including several taxonomies for one post type, or register them in code with the `vgptts_registered_mappings` filter. Registered mappings show on the settings page as locked rows that can be synced but not changed.
 - Automatically creates, updates, and deletes the paired term/post when either side is saved or deleted.
+- Keeps a trashed or unpublished post's term and relationships, hidden from the editor and related lookups, until the post is deleted permanently.
 - Syncs hierarchy: when both the post type and taxonomy are hierarchical, parent/child relationships are mirrored too.
 - A manual "Sync" action per mapping backfills missing terms/posts and removes orphaned ones.
 - Hides the auto-managed taxonomy's term-management UI (submenu, "Add New Term" controls, block editor panel) so editors don't edit synced terms directly.

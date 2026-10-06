@@ -63,7 +63,11 @@ Returns the post type slug mapped to a given taxonomy, or `null` if none is conf
 
 ### `get_related_post_ids_for_post( int $post_id, string $taxonomy ): array`
 
-Given a post and a (typically unrelated) taxonomy, returns the post IDs linked — via that taxonomy's synced terms — to the terms assigned to `$post_id`. Useful for surfacing "related" content through a synced taxonomy without writing custom term-meta lookups.
+Given a post and a (typically unrelated) taxonomy, returns the post IDs linked — via that taxonomy's synced terms — to the terms assigned to `$post_id`. Useful for surfacing "related" content through a synced taxonomy without writing custom term-meta lookups. Only published posts are returned: a related post that's trashed or unpublished is left out until it's published again.
+
+### `get_unpublished_term_ids( string $taxonomy ): int[]`
+
+Returns the IDs of a synced taxonomy's terms whose post isn't published (trashed, draft, pending, private or scheduled). These terms are kept so restoring the post brings back its relationships, but they're hidden from the editor's term lists. See [Trashed and unpublished posts](#trashed-and-unpublished-posts).
 
 ### `get_post_id_for_term( int $term_id ): ?int`
 
@@ -73,7 +77,16 @@ Returns the post ID linked to a given term via the sync, or `null` if the term i
 
 ### `sync_terms( string $post_type, string $taxonomy ): void`
 
-Runs a full reconciliation for one mapping (a post type with several taxonomies has one per taxonomy): creates/updates a term for every published post of `$post_type`, and removes any term whose linked post is missing, trashed, or of the wrong type. This is what the settings page's per-row **Sync** button triggers via AJAX (`vgptts_sync_mapping`); call it directly for a WP-CLI command or a scheduled job.
+Runs a full reconciliation for one mapping (a post type with several taxonomies has one per taxonomy): creates/updates a term for every published post of `$post_type`, and removes any term whose linked post is missing or of the wrong type. A trashed post's term is kept. This is what the settings page's per-row **Sync** button triggers via AJAX (`vgptts_sync_mapping`); call it directly for a WP-CLI command or a scheduled job.
+
+## Trashed and unpublished posts
+
+When a synced post is trashed or unpublished, its term stays, along with every relationship to it. The term is only deleted when the post is deleted permanently. While the post isn't published:
+
+- Its term is hidden from the taxonomy's term lists in the block editor and the classic meta box, on every post. A post that already has the term still sees it, so its relationship isn't dropped on save.
+- `get_related_post_ids_for_post()` and `GET /vgptts/v1/posts/{id}/related` leave the post out.
+
+Publishing it again shows the term and its relationships as before.
 
 ## REST API
 
