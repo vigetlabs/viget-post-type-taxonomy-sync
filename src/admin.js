@@ -134,6 +134,37 @@
 		filterPendingRows();
 	}
 
+	// Same markup as core's dismissible notices. Focus moves to it, since the clicked button is gone.
+	function showNotice( message ) {
+		const container = document.getElementById( 'vgptts-notices' );
+		if ( ! container || ! message ) {
+			return;
+		}
+
+		const notice = document.createElement( 'div' );
+		notice.className = 'notice notice-success is-dismissible';
+		notice.setAttribute( 'tabindex', '-1' );
+
+		const text = document.createElement( 'p' );
+		text.textContent = message;
+		notice.appendChild( text );
+
+		const dismiss = document.createElement( 'button' );
+		dismiss.type = 'button';
+		dismiss.className = 'notice-dismiss';
+		const label = document.createElement( 'span' );
+		label.className = 'screen-reader-text';
+		label.textContent = vgpttsMappings.dismissNotice;
+		dismiss.appendChild( label );
+		dismiss.addEventListener( 'click', function () {
+			notice.remove();
+		} );
+		notice.appendChild( dismiss );
+
+		container.replaceChildren( notice );
+		notice.focus();
+	}
+
 	// Saved mappings are removed on the server right away, so there's nothing left to save.
 	function removeSavedRow( button ) {
 		if (
@@ -169,6 +200,7 @@
 					throw new Error();
 				}
 				removeRow( row );
+				showNotice( data.data.message );
 			} )
 			.catch( function () {
 				button.disabled = false;

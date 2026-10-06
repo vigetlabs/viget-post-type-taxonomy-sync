@@ -55,6 +55,7 @@ class SettingsAjaxTest extends WP_Ajax_UnitTestCase {
 		$response = $this->remove( 'post', 'post_tag' );
 
 		$this->assertTrue( $response['success'] );
+		$this->assertSame( 'Mapping removed: Post → Tag.', $response['data']['message'] );
 		$this->assertSame(
 			[
 				[
