@@ -61,32 +61,14 @@ class Admin {
 	}
 
 	/**
-	 * Get mapped taxonomies for a given post type.
+	 * Get the synced taxonomies a post type has, including ones mapped to another post type.
 	 *
 	 * @param string $post_type Post type slug.
 	 *
 	 * @return string[]
 	 */
 	protected function get_synced_taxonomies_for_post_type( string $post_type ): array {
-		$result   = [];
-		$mappings = vgptts()->get_mappings();
-
-		foreach ( $mappings as $mapping ) {
-			$mapped_post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
-			$taxonomy         = isset( $mapping['taxonomy'] ) ? sanitize_key( $mapping['taxonomy'] ) : '';
-
-			if ( ! $mapped_post_type || ! $taxonomy ) {
-				continue;
-			}
-
-			if ( $mapped_post_type !== $post_type ) {
-				continue;
-			}
-
-			$result[] = $taxonomy;
-		}
-
-		return array_values( array_unique( $result ) );
+		return array_values( array_filter( get_object_taxonomies( $post_type ), [ $this, 'is_synced_taxonomy' ] ) );
 	}
 
 	/**
@@ -234,9 +216,15 @@ class Admin {
 	 */
 	public function register_rest_create_term_link_filter(): void {
 		foreach ( vgptts()->get_mappings() as $mapping ) {
-			$post_type = isset( $mapping['post_type'] ) ? sanitize_key( $mapping['post_type'] ) : '';
+			$taxonomy        = isset( $mapping['taxonomy'] ) ? sanitize_key( $mapping['taxonomy'] ) : '';
+			$taxonomy_object = $taxonomy ? get_taxonomy( $taxonomy ) : false;
 
-			if ( $post_type ) {
+			if ( ! $taxonomy_object ) {
+				continue;
+			}
+
+			// The post types the taxonomy is on, which can differ from the one it syncs with.
+			foreach ( $taxonomy_object->object_type as $post_type ) {
 				add_filter( "rest_prepare_{$post_type}", [ $this, 'remove_create_term_link' ], 10, 2 );
 			}
 		}
