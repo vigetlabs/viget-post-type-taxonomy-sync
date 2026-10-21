@@ -3,7 +3,7 @@ Contributors: Viget
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 2.1.1
+Stable tag: 2.1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,9 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * PHP 8.2+
 
 == Changelog ==
+
+= 2.1.2 =
+* Fixed: "Add New" still showed in the block editor and the classic meta box for a synced taxonomy on post types other than the one it syncs with. It's now hidden on every post type the taxonomy is on.
 
 = 2.1.1 =
 * Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.
