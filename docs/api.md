@@ -118,7 +118,11 @@ Registers mappings in code, for a plugin or theme that owns both the post type a
 - show on the settings page as locked rows, with a **Sync** button and no way to edit or remove them;
 - take precedence over a saved mapping that uses the same taxonomy. The saved row is flagged as not synced.
 
-A post type can sync to several taxonomies, but a taxonomy syncs to one post type. A registered mapping that reuses a taxonomy claimed by an earlier registered mapping, or that names a post type or taxonomy that isn't registered, shows as a flagged row: struck through, with an ✕ whose tooltip says why it isn't synced.
+A post type can sync to several taxonomies, but a taxonomy syncs to one post type. A registered mapping that reuses a taxonomy claimed by an earlier registered mapping, or that names a post type or taxonomy that isn't registered, shows as a flagged row: struck through, with an ✕ whose tooltip says why it isn't synced. One whose post type isn't registered still reserves its taxonomy, so a saved mapping can't take it over while the post type is missing.
+
+Unlike the settings page, a registered mapping can sync a hierarchical post type to a non-hierarchical taxonomy. Names and slugs sync, but parents don't, and the row's tooltip says so.
+
+Mappings are read on each save, so the filter can be added inside the `init` callback that registers the post type and taxonomy.
 
 ```php
 add_filter(

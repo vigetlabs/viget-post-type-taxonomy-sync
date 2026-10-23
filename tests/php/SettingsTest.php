@@ -342,6 +342,60 @@ class SettingsTest extends VGPTTS_TestCase {
 	}
 
 	/**
+	 * A registered mapping for a missing post type still reserves its taxonomy, and says so.
+	 */
+	public function test_unregistered_post_type_still_reserves_taxonomy() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'vgptts_missing',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$rows = vgptts()->settings->get_registered_rows();
+
+		$this->assertFalse( $rows[0]['synced'] );
+		$this->assertStringContainsString( '"category" stays reserved for it', $rows[0]['note'] );
+		$this->assertSame( 'vgptts_missing', vgptts()->get_post_type_for_taxonomy( 'category' ) );
+		$this->assertStringContainsString( 'Not synced: Category already syncs with vgptts_missing.', $this->get_rendered_row( 'vgptts-row-overridden' ) );
+	}
+
+	/**
+	 * A registered hierarchical post type mapped to a flat taxonomy renders as synced, with a note and Sync.
+	 */
+	public function test_render_mappings_field_notes_registered_hierarchy_mismatch() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$rows = vgptts()->settings->get_registered_rows();
+		$this->assertTrue( $rows[0]['synced'] );
+
+		$row = $this->get_rendered_row( 'vgptts-row-registered' );
+
+		$this->assertStringNotContainsString( 'vgptts-row-flagged', $row );
+		$this->assertStringNotContainsString( 'Not synced', $row );
+		$this->assertStringContainsString( 'Synced without hierarchy: Tag is not hierarchical', $row );
+		$this->assertStringContainsString( 'dashicons-lock', $row );
+		$this->assertStringContainsString( 'vgptts-sync-row', $row );
+	}
+
+	/**
 	 * A saved mapping that reuses a taxonomy from an earlier saved one shows why it isn't synced.
 	 */
 	public function test_render_mappings_field_notes_conflicting_saved_mapping() {
