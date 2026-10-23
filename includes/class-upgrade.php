@@ -23,9 +23,12 @@ class Upgrade {
 	const OPTION_NAME = 'vgptts_db_version';
 
 	/**
-	 * Current data version. 2 stores a post's synced term ID per taxonomy (2.2.0).
+	 * Upgrade methods, keyed by the data version each one moves a site to.
+	 * To add one, add a method and a new entry with the next version.
 	 */
-	const DB_VERSION = 2;
+	const UPGRADES = [
+		2 => 'move_term_ids_to_taxonomy_keys', // 2.2.0: synced term ID per taxonomy.
+	];
 
 	/**
 	 * Instance of this class.
@@ -54,27 +57,49 @@ class Upgrade {
 	}
 
 	/**
-	 * Whether the current site's data is on the current version.
+	 * The data version the current site is on.
+	 *
+	 * @return int
+	 */
+	public static function get_version(): int {
+		return (int) get_option( self::OPTION_NAME, 0 );
+	}
+
+	/**
+	 * Whether the current site's data is on the latest version.
 	 *
 	 * @return bool
 	 */
 	public static function is_current(): bool {
-		return (int) get_option( self::OPTION_NAME, 0 ) >= self::DB_VERSION;
+		return self::get_version() >= array_key_last( self::UPGRADES );
 	}
 
 	/**
-	 * Runs any upgrades the current site hasn't had yet.
+	 * Whether the current site stores synced term IDs per taxonomy (version 2).
+	 *
+	 * @return bool
+	 */
+	public static function has_term_keys(): bool {
+		return self::get_version() >= 2;
+	}
+
+	/**
+	 * Runs any upgrades the current site hasn't had yet, in order.
 	 *
 	 * @return void
 	 */
 	public function maybe_upgrade(): void {
-		if ( self::is_current() ) {
-			return;
+		$version = self::get_version();
+
+		foreach ( self::UPGRADES as $to => $method ) {
+			if ( $version >= $to ) {
+				continue;
+			}
+
+			$this->$method();
+
+			update_option( self::OPTION_NAME, $to );
 		}
-
-		$this->move_term_ids_to_taxonomy_keys();
-
-		update_option( self::OPTION_NAME, self::DB_VERSION );
 	}
 
 	/**

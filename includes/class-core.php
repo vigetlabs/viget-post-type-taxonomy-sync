@@ -339,7 +339,7 @@ class Core {
 	public function get_term_id_for_post( int $post_id, string $taxonomy ): ?int {
 		$term_id = (int) get_post_meta( $post_id, $this->get_post_meta_key( $taxonomy ), true );
 
-		if ( ! $term_id && ! Upgrade::is_current() ) {
+		if ( ! $term_id && ! Upgrade::has_term_keys() ) {
 			$legacy_id = (int) get_post_meta( $post_id, self::POST_META_KEY, true );
 			$term      = $legacy_id ? get_term( $legacy_id ) : null;
 			$term_id   = $term instanceof \WP_Term && $term->taxonomy === $taxonomy ? $legacy_id : 0;
@@ -374,7 +374,7 @@ class Core {
 
 		$meta_query = [ [ 'key' => $this->get_post_meta_key( $taxonomy ) ] ];
 
-		if ( ! Upgrade::is_current() ) {
+		if ( ! Upgrade::has_term_keys() ) {
 			$meta_query[]           = [ 'key' => self::POST_META_KEY ];
 			$meta_query['relation'] = 'OR';
 		}

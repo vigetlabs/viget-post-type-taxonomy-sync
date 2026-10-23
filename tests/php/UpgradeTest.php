@@ -55,6 +55,19 @@ class UpgradeTest extends VGPTTS_TestCase {
 	}
 
 	/**
+	 * Per-taxonomy term keys depend on version 2, not the latest version.
+	 */
+	public function test_has_term_keys_from_version_two() {
+		$this->assertFalse( Upgrade::has_term_keys() );
+
+		update_option( Upgrade::OPTION_NAME, 2 );
+		$this->assertTrue( Upgrade::has_term_keys() );
+
+		update_option( Upgrade::OPTION_NAME, 3 );
+		$this->assertTrue( Upgrade::has_term_keys() );
+	}
+
+	/**
 	 * A term ID whose term is gone is dropped instead of moved.
 	 */
 	public function test_drops_term_ids_for_missing_terms() {
@@ -78,7 +91,7 @@ class UpgradeTest extends VGPTTS_TestCase {
 
 		$this->assertSame( [ (string) $term_id ], get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), false ), 'One value, not a duplicate.' );
 
-		update_option( Upgrade::OPTION_NAME, Upgrade::DB_VERSION );
+		update_option( Upgrade::OPTION_NAME, array_key_last( Upgrade::UPGRADES ) );
 		add_post_meta( $post_id, Core::POST_META_KEY, $term_id );
 
 		Upgrade::get_instance()->maybe_upgrade();
