@@ -482,7 +482,7 @@ class SyncTest extends VGPTTS_TestCase {
 		vgptts()->sync->register_hooks();
 
 		$this->assertNotFalse(
-			has_action( 'save_post_vgptts_late_cpt', [ vgptts()->sync, 'handle_post_save' ] ),
+			has_action( 'save_post', [ vgptts()->sync, 'handle_post_save' ] ),
 			'save_post hook should register regardless of when the post type is registered.'
 		);
 		$this->assertNotFalse( has_action( 'saved_term', [ vgptts()->sync, 'handle_term_save' ] ) );
@@ -505,5 +505,71 @@ class SyncTest extends VGPTTS_TestCase {
 
 		unregister_post_type( 'vgptts_late_cpt' );
 		unregister_taxonomy( 'vgptts_late_tax' );
+	}
+
+	/**
+	 * A mapping registered after the sync hooks are added, like one added on `init`, still syncs.
+	 */
+	public function test_mapping_registered_after_hooks_syncs() {
+		remove_all_filters( 'vgptts_registered_mappings' );
+		add_filter(
+			'vgptts_registered_mappings',
+			static fn( array $mappings ): array => array_merge(
+				$mappings,
+				[
+					[
+						'post_type' => 'page',
+						'taxonomy'  => 'vgptts_section',
+					],
+				]
+			)
+		);
+
+		$post_id = self::factory()->post->create(
+			[
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'post_title'  => 'Registered Late',
+			]
+		);
+
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'vgptts_section' ), true );
+		$this->assertNotEmpty( $term_id );
+		$this->assertSame( 'Registered Late', get_term( $term_id, 'vgptts_section' )->name );
+	}
+
+	/**
+	 * A registered hierarchical post type syncs to a non-hierarchical taxonomy, without parents.
+	 */
+	public function test_registered_hierarchical_post_type_syncs_to_flat_taxonomy() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$parent_id = self::factory()->post->create(
+			[
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'post_title'  => 'Parent Page',
+			]
+		);
+		$child_id  = self::factory()->post->create(
+			[
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'post_title'  => 'Child Page',
+				'post_parent' => $parent_id,
+			]
+		);
+
+		$term = get_term( (int) get_post_meta( $child_id, vgptts()->get_post_meta_key( 'post_tag' ), true ), 'post_tag' );
+		$this->assertInstanceOf( WP_Term::class, $term );
+		$this->assertSame( 'Child Page', $term->name );
+		$this->assertSame( 0, $term->parent );
 	}
 }
