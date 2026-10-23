@@ -50,7 +50,7 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 		$this->assertNotEmpty( $term_id );
 
 		$term = get_term( $term_id, 'post_tag' );
@@ -77,7 +77,7 @@ class SyncTest extends VGPTTS_TestCase {
 				'post_title'  => 'Original',
 			]
 		);
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		wp_update_post(
 			[
@@ -104,7 +104,7 @@ class SyncTest extends VGPTTS_TestCase {
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'draft' ] );
 
-		$this->assertEmpty( get_post_meta( $post_id, Core::POST_META_KEY, true ) );
+		$this->assertEmpty( get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true ) );
 	}
 
 	/**
@@ -121,7 +121,7 @@ class SyncTest extends VGPTTS_TestCase {
 		);
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		wp_delete_post( $post_id, true );
 
@@ -155,7 +155,7 @@ class SyncTest extends VGPTTS_TestCase {
 		$this->assertSame( 'New Term', $post->post_title );
 		$this->assertSame( 'post', $post->post_type );
 		$this->assertSame( 'publish', $post->post_status );
-		$this->assertSame( $term_id, (int) get_post_meta( $post_id, Core::POST_META_KEY, true ) );
+		$this->assertSame( $term_id, (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true ) );
 	}
 
 	/**
@@ -235,8 +235,8 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$parent_term_id = (int) get_post_meta( $parent_id, Core::POST_META_KEY, true );
-		$child_term_id  = (int) get_post_meta( $child_id, Core::POST_META_KEY, true );
+		$parent_term_id = (int) get_post_meta( $parent_id, vgptts()->get_post_meta_key( 'vgptts_section' ), true );
+		$child_term_id  = (int) get_post_meta( $child_id, vgptts()->get_post_meta_key( 'vgptts_section' ), true );
 
 		$this->assertSame( $parent_term_id, get_term( $child_term_id, 'vgptts_section' )->parent );
 	}
@@ -274,7 +274,7 @@ class SyncTest extends VGPTTS_TestCase {
 				'post_title'  => 'Preexisting',
 			]
 		);
-		$this->assertEmpty( get_post_meta( $post_id, Core::POST_META_KEY, true ) );
+		$this->assertEmpty( get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true ) );
 
 		$this->set_mappings(
 			[
@@ -286,7 +286,7 @@ class SyncTest extends VGPTTS_TestCase {
 		);
 		vgptts()->sync->sync_terms( 'post', 'post_tag' );
 
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 		$this->assertNotEmpty( $term_id );
 		$this->assertSame( 'Preexisting', get_term( $term_id, 'post_tag' )->name );
 	}
@@ -307,7 +307,7 @@ class SyncTest extends VGPTTS_TestCase {
 		);
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		// Simulate the post having been removed by something other than this plugin
 		// (bypassing wp_delete_post(), which would otherwise clean up the term itself).
@@ -340,7 +340,7 @@ class SyncTest extends VGPTTS_TestCase {
 		add_filter( 'vgptts_synced_term_args', $add_description );
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$this->assertSame( 'Injected by filter', get_term( $term_id, 'post_tag' )->description );
 
@@ -403,7 +403,7 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertSame( $existing_id, (int) get_post_meta( $post_id, Core::POST_META_KEY, true ) );
+		$this->assertSame( $existing_id, (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true ) );
 		$this->assertSame( (string) $post_id, get_term_meta( $existing_id, Core::TERM_META_KEY, true ) );
 
 		// The adopted term now tracks title changes.
@@ -444,7 +444,7 @@ class SyncTest extends VGPTTS_TestCase {
 				'post_name'   => 'shared-name',
 			]
 		);
-		$term_id  = (int) get_post_meta( $owner_id, Core::POST_META_KEY, true );
+		$term_id  = (int) get_post_meta( $owner_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 		$this->assertNotEmpty( $term_id );
 
 		$other_id = self::factory()->post->create(
@@ -456,7 +456,7 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertEmpty( get_post_meta( $other_id, Core::POST_META_KEY, true ) );
+		$this->assertEmpty( get_post_meta( $other_id, vgptts()->get_post_meta_key( 'post_tag' ), true ) );
 		$this->assertSame( (string) $owner_id, get_term_meta( $term_id, Core::TERM_META_KEY, true ) );
 	}
 
@@ -499,7 +499,7 @@ class SyncTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'vgptts_late_tax' ), true );
 		$this->assertNotEmpty( $term_id, 'A post saved after late CPT registration should still sync.' );
 		$this->assertSame( 'Late Registration', get_term( $term_id, 'vgptts_late_tax' )->name );
 

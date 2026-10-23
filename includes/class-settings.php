@@ -180,19 +180,18 @@ class Settings {
 				continue;
 			}
 
-			// A post type and a taxonomy can each sync once.
+			// A taxonomy syncs to one post type. A post type can sync to several taxonomies.
 			$conflict = vgptts()->find_conflict( $pair, $sanitized['mappings'] );
 			if ( $conflict ) {
 				add_settings_error(
 					self::OPTION_NAME,
 					"vgptts_conflict_{$post_type}_{$taxonomy}",
 					sprintf(
-						/* translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug */
-						__( 'Mapping "%1$s" to "%2$s" was not saved. "%3$s" to "%4$s" already uses that post type or taxonomy.', 'viget-post-type-taxonomy-sync' ),
+						/* translators: 1: post type slug, 2: taxonomy slug, 3: post type slug the taxonomy already syncs with */
+						__( 'Mapping "%1$s" to "%2$s" was not saved. "%2$s" already syncs with "%3$s".', 'viget-post-type-taxonomy-sync' ),
 						$post_type,
 						$taxonomy,
-						$conflict['post_type'],
-						$conflict['taxonomy']
+						$conflict['post_type']
 					),
 					'error'
 				);
@@ -428,13 +427,11 @@ class Settings {
 				continue;
 			}
 
-			$shares_taxonomy = $flag['conflict']['taxonomy'] === $mapping['taxonomy'];
-
 			return sprintf(
-				/* translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with */
+				/* translators: 1: taxonomy name, 2: the post type it already syncs with */
 				__( 'Not synced: %1$s already syncs with %2$s.', 'viget-post-type-taxonomy-sync' ),
-				$shares_taxonomy ? self::get_taxonomy_label( $mapping['taxonomy'] ) : self::get_post_type_label( $mapping['post_type'] ),
-				$shares_taxonomy ? self::get_post_type_label( $flag['conflict']['post_type'] ) : self::get_taxonomy_label( $flag['conflict']['taxonomy'] )
+				self::get_taxonomy_label( $mapping['taxonomy'] ),
+				self::get_post_type_label( $flag['conflict']['post_type'] )
 			);
 		}
 

@@ -75,7 +75,7 @@ class RestTest extends WP_Test_REST_TestCase {
 				'post_title'  => 'Synced Post',
 			]
 		);
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$request  = new WP_REST_Request( 'GET', "/vgptts/v1/posts/{$post_id}/synced-term" );
 		$response = $this->server->dispatch( $request );
@@ -176,7 +176,7 @@ class RestTest extends WP_Test_REST_TestCase {
 				'post_title'  => 'Related Post',
 			]
 		);
-		$other_term_id = (int) get_post_meta( $other_post_id, Core::POST_META_KEY, true );
+		$other_term_id = (int) get_post_meta( $other_post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
 		wp_set_post_terms( $post_id, [ $other_term_id ], 'post_tag' );
@@ -268,5 +268,40 @@ class RestTest extends WP_Test_REST_TestCase {
 
 		// A private post with no synced term yet still 404s, but on the *term*, not the permission check.
 		$this->assertErrorResponse( 'vgptts_no_synced_term', $response, 404 );
+	}
+
+	/**
+	 * With several taxonomies, the synced-term route needs the taxonomy, and returns that taxonomy's term.
+	 */
+	public function test_get_synced_term_for_post_with_several_taxonomies() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
+
+		$response = $this->server->dispatch( new WP_REST_Request( 'GET', "/vgptts/v1/posts/{$post_id}/synced-term" ) );
+		$this->assertErrorResponse( 'vgptts_taxonomy_required', $response, 400 );
+
+		$request = new WP_REST_Request( 'GET', "/vgptts/v1/posts/{$post_id}/synced-term" );
+		$request->set_query_params( [ 'taxonomy' => 'category' ] );
+		$response = $this->server->dispatch( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'category', $response->get_data()['taxonomy'] );
+		$this->assertSame( (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'category' ), true ), $response->get_data()['id'] );
+
+		$request = new WP_REST_Request( 'GET', "/vgptts/v1/posts/{$post_id}/synced-term" );
+		$request->set_query_params( [ 'taxonomy' => 'post_format' ] );
+		$this->assertErrorResponse( 'vgptts_no_mapping', $this->server->dispatch( $request ), 404 );
 	}
 }

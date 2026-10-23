@@ -13,8 +13,9 @@ Keeps a post type and a taxonomy in sync automatically: publish a post and a mat
 
 ## Features
 
-- Define any number of post type ↔ taxonomy mappings from **Settings → Post/Tax Sync**, or register them in code with the `vgptts_registered_mappings` filter. Registered mappings show on the settings page as locked rows that can be synced but not changed.
+- Define any number of post type ↔ taxonomy mappings from **Settings → Post/Tax Sync**, including several taxonomies for one post type, or register them in code with the `vgptts_registered_mappings` filter. Registered mappings show on the settings page as locked rows that can be synced but not changed.
 - Automatically creates, updates, and deletes the paired term/post when either side is saved or deleted.
+- Keeps a trashed or unpublished post's term and relationships, hidden from the editor and related lookups, until the post is deleted permanently.
 - Syncs hierarchy: when both the post type and taxonomy are hierarchical, parent/child relationships are mirrored too.
 - A manual "Sync" action per mapping backfills missing terms/posts and removes orphaned ones.
 - Hides the auto-managed taxonomy's term-management UI (submenu, "Add New Term" controls, block editor panel) so editors don't edit synced terms directly.
@@ -45,7 +46,7 @@ Requires [`composer/installers`](https://github.com/composer/installers) (instal
 3. Publishing a post of that type creates/updates a term of that taxonomy with a matching name and slug (and vice versa).
 4. Use the row's **Sync** button at any point to backfill existing content or clean up orphaned terms/posts for that mapping.
 
-Only one taxonomy can be mapped per post type (and vice versa). If both the post type and taxonomy are hierarchical, parent/child structure is mirrored automatically.
+A post type can sync to several taxonomies, each with its own Sync row. A taxonomy syncs to one post type, so a second mapping for a taxonomy that's already mapped isn't saved. If both the post type and taxonomy are hierarchical, parent/child structure is mirrored automatically.
 
 ## Auto-Updates
 
@@ -85,7 +86,7 @@ composer install    # installs phpunit + yoast/phpunit-polyfills
 npm test
 ```
 
-The suite covers `Core`, `Settings`, `Sync` (including regression tests for two WordPress-core hook-signature bugs fixed in 2.0.0 — see the changelog), `Admin`, the REST API, and the GitHub updater (with mocked HTTP responses).
+The suite covers `Core`, `Settings`, `Sync` (including regression tests for two WordPress-core hook-signature bugs fixed in 2.0.0 — see the changelog), one post type syncing to several taxonomies, the data upgrade, `Admin`, the REST API, and the GitHub updater (with mocked HTTP responses). Run it as multisite with `npx wp-env run tests-cli --env-cwd=wp-content/plugins/viget-post-type-taxonomy-sync -- env WP_MULTISITE=1 vendor/bin/phpunit`.
 
 ### Releasing a new version
 

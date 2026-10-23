@@ -66,10 +66,16 @@ class REST {
 				'callback'            => [ $this, 'get_synced_term_for_post' ],
 				'permission_callback' => [ $this, 'post_permissions_check' ],
 				'args'                => [
-					'id' => [
+					'id'       => [
 						'required'          => true,
 						'validate_callback' => static function ( $value ) {
 							return is_numeric( $value );
+						},
+					],
+					'taxonomy' => [
+						'required'          => false,
+						'validate_callback' => static function ( $value ) {
+							return is_string( $value ) && taxonomy_exists( $value );
 						},
 					],
 				],
@@ -182,17 +188,19 @@ class REST {
 	/**
 	 * Returns the term synced to a post.
 	 *
+	 * The `taxonomy` param picks one when the post type syncs to several, and is required then.
+	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function get_synced_term_for_post( WP_REST_Request $request ) {
-		$post_id = (int) $request['id'];
-		$post    = get_post( $post_id );
+		$post_id    = (int) $request['id'];
+		$post       = get_post( $post_id );
+		$taxonomies = vgptts()->get_taxonomies_for_post_type( $post->post_type );
+		$taxonomy   = $request['taxonomy'] ? (string) $request['taxonomy'] : '';
 
-		$taxonomy = vgptts()->get_taxonomy_for_post_type( $post->post_type );
-
-		if ( ! $taxonomy ) {
+		if ( ! $taxonomies || ( $taxonomy && ! \in_array( $taxonomy, $taxonomies, true ) ) ) {
 			return new WP_Error(
 				'vgptts_no_mapping',
 				__( 'This post type is not mapped to a taxonomy.', 'viget-post-type-taxonomy-sync' ),
@@ -200,8 +208,17 @@ class REST {
 			);
 		}
 
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
-		$term    = $term_id ? get_term( $term_id, $taxonomy ) : null;
+		if ( ! $taxonomy && \count( $taxonomies ) > 1 ) {
+			return new WP_Error(
+				'vgptts_taxonomy_required',
+				__( 'This post type syncs to more than one taxonomy. Pass the taxonomy to look up.', 'viget-post-type-taxonomy-sync' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		$taxonomy = $taxonomy ? $taxonomy : $taxonomies[0];
+		$term_id  = (int) vgptts()->get_term_id_for_post( $post_id, $taxonomy );
+		$term     = $term_id ? get_term( $term_id, $taxonomy ) : null;
 
 		if ( ! $term || is_wp_error( $term ) ) {
 			return new WP_Error(
