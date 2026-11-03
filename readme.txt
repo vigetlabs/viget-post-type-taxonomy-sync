@@ -11,11 +11,11 @@ Keeps a post type and a taxonomy in sync automatically, so every post gets a mat
 
 == Description ==
 
-Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one-to-one. Publish a post and a matching term is created automatically (and kept in sync on every update); create or edit a term and the matching post follows along. This is useful when a taxonomy needs to double as a lightweight, linkable "profile" for a post (for example, syncing a `product` post type to a `product-line` taxonomy so other content can be tagged with a product without duplicating its data).
+Viget Post Type Taxonomy Sync keeps a post type mirrored in one or more taxonomies, one term per post in each. Publish a post and a matching term is created automatically (and kept in sync on every update); create or edit a term and the matching post follows along. This is useful when a taxonomy needs to double as a lightweight, linkable "profile" for a post (for example, syncing a `product` post type to a `product-line` taxonomy so other content can be tagged with a product without duplicating its data).
 
 = Features =
 
-* Define any number of post type ↔ taxonomy mappings from **Settings → Post/Tax Sync**.
+* Define any number of post type ↔ taxonomy mappings from **Settings → Post/Tax Sync**. A post type can sync to several taxonomies; a taxonomy syncs to one post type.
 * Automatically creates, updates, and deletes the paired term/post when either side is saved or deleted.
 * Supports hierarchical syncing: if both the post type and taxonomy are hierarchical, parent/child relationships are mirrored too.
 * A manual "Sync" action per mapping reconciles existing content (backfills missing terms/posts, removes orphaned ones).
@@ -36,6 +36,15 @@ Viget Post Type Taxonomy Sync keeps a chosen post type and taxonomy mirrored one
 * PHP 8.2+
 
 == Changelog ==
+
+= 2.2.0 =
+* A post type can sync to more than one taxonomy. Each mapping keeps its own term per post, and saving, renaming or deleting a post updates its term in every taxonomy. A taxonomy still syncs to one post type, so the settings page only hides and rejects taxonomies that are already mapped.
+* A term change carries over to its post's terms in the other taxonomies: creating a term creates the post with its other terms, renaming renames them, and deleting removes them.
+* A post's synced term ID is now stored per taxonomy, under `_vgptts_term_id_{taxonomy}`. Each site moves its existing `_vgptts_term_id` data over once, on its first request after the update, with nothing to run by hand. Until then, reads fall back to the old key.
+* Added `get_taxonomies_for_post_type()`, `get_term_id_for_post()` and `get_post_meta_key()` to `Core`. `get_taxonomy_for_post_type()` returns the first mapped taxonomy.
+* `GET /vgptts/v1/posts/{id}/synced-term` takes an optional `taxonomy` param, required when the post type syncs to several.
+* `find_conflict()` and `is_overridden()` only match on taxonomy.
+* A trashed or unpublished post keeps its term and relationships until it's deleted permanently, so restoring it brings them back. While it isn't published, its term is hidden from the editor's term lists (unless a post already has it) and the post is left out of `get_related_post_ids_for_post()`. The Sync button no longer deletes a trashed post's term. Added `Core::get_unpublished_term_ids()`.
 
 = 2.1.1 =
 * Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.

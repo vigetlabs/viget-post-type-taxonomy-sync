@@ -107,6 +107,48 @@ class SettingsAjaxTest extends WP_Ajax_UnitTestCase {
 	}
 
 	/**
+	 * The Sync button syncs each mapping for a post type on its own.
+	 */
+	public function test_sync_mapping_runs_each_mapping_for_a_post_type() {
+		update_option( Core::OPTION_NAME, [ 'mappings' => [] ] );
+		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
+
+		update_option(
+			Core::OPTION_NAME,
+			[
+				'mappings' => [
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'post_tag',
+					],
+					[
+						'post_type' => 'post',
+						'taxonomy'  => 'category',
+					],
+				],
+			]
+		);
+
+		foreach ( [ 'post_tag', 'category' ] as $taxonomy ) {
+			$_POST['nonce']     = wp_create_nonce( 'vgptts_sync_mapping' );
+			$_POST['post_type'] = 'post';
+			$_POST['taxonomy']  = $taxonomy;
+
+			try {
+				$this->_handleAjax( 'vgptts_sync_mapping' );
+			} catch ( WPAjaxDieContinueException $exception ) {
+				unset( $exception );
+			}
+
+			$this->assertTrue( json_decode( $this->_last_response, true )['success'], $taxonomy );
+			$this->_last_response = '';
+
+			$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( $taxonomy ), true );
+			$this->assertInstanceOf( WP_Term::class, get_term( $term_id, $taxonomy ), $taxonomy );
+		}
+	}
+
+	/**
 	 * Calls the remove-mapping action and returns the decoded response.
 	 *
 	 * @param string $post_type Post type slug.

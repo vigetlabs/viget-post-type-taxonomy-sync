@@ -114,7 +114,7 @@ class Sync {
 	}
 
 	/**
-	 * Handles post save to create or update the related term.
+	 * Handles post save to create or update the related term in each mapped taxonomy.
 	 *
 	 * @param int     $post_id Post ID.
 	 * @param WP_Post $post    Post object.
@@ -138,15 +138,17 @@ class Sync {
 			return;
 		}
 
-		$taxonomy = vgptts()->get_taxonomy_for_post_type( $post->post_type );
+		$taxonomies = vgptts()->get_taxonomies_for_post_type( $post->post_type );
 
-		if ( ! $taxonomy ) {
+		if ( ! $taxonomies ) {
 			return;
 		}
 
 		$this->is_syncing = true;
 
-		$this->upsert_term_for_post( $post, $taxonomy );
+		foreach ( $taxonomies as $taxonomy ) {
+			$this->upsert_term_for_post( $post, $taxonomy );
+		}
 
 		$this->is_syncing = false;
 	}
@@ -180,7 +182,8 @@ class Sync {
 			}
 		}
 
-		$term_id = (int) get_post_meta( $post->ID, Core::POST_META_KEY, true );
+		$meta_key = vgptts()->get_post_meta_key( $taxonomy );
+		$term_id  = (int) vgptts()->get_term_id_for_post( $post->ID, $taxonomy );
 
 		if ( $term_id && term_exists( $term_id, $taxonomy ) ) {
 			$args = [
@@ -205,6 +208,9 @@ class Sync {
 			if ( is_wp_error( $updated ) ) {
 				return null;
 			}
+
+			// Found under the old single key before the upgrade ran, so store it under this taxonomy's key.
+			update_post_meta( $post->ID, $meta_key, $term_id );
 
 			return $term_id;
 		}
@@ -237,7 +243,7 @@ class Sync {
 				return null;
 			}
 
-			update_post_meta( $post->ID, Core::POST_META_KEY, $existing_id );
+			update_post_meta( $post->ID, $meta_key, $existing_id );
 			update_term_meta( $existing_id, Core::TERM_META_KEY, $post->ID );
 
 			// Re-run so the adopted term picks up the post's slug and parent.
@@ -249,14 +255,14 @@ class Sync {
 		}
 
 		$term_id = (int) $created['term_id'];
-		update_post_meta( $post->ID, Core::POST_META_KEY, $term_id );
+		update_post_meta( $post->ID, $meta_key, $term_id );
 		update_term_meta( $term_id, Core::TERM_META_KEY, $post->ID );
 
 		return $term_id;
 	}
 
 	/**
-	 * Handles post deletion to remove the related term.
+	 * Handles post deletion to remove the related term in each mapped taxonomy.
 	 *
 	 * @param int $post_id Post ID.
 	 *
@@ -273,18 +279,55 @@ class Sync {
 			return;
 		}
 
-		$taxonomy = vgptts()->get_taxonomy_for_post_type( $post->post_type );
+		$this->is_syncing = true;
+		$this->delete_terms_for_post( $post );
+		$this->is_syncing = false;
+	}
 
-		if ( ! $taxonomy ) {
+	/**
+	 * Deletes a post's synced terms, optionally skipping one taxonomy.
+	 *
+	 * @param WP_Post $post             Post object.
+	 * @param string  $except_taxonomy  Taxonomy to leave alone, e.g. the one whose term is being deleted.
+	 *
+	 * @return void
+	 */
+	protected function delete_terms_for_post( WP_Post $post, string $except_taxonomy = '' ): void {
+		foreach ( vgptts()->get_taxonomies_for_post_type( $post->post_type ) as $taxonomy ) {
+			if ( $taxonomy === $except_taxonomy ) {
+				continue;
+			}
+
+			$term_id = (int) vgptts()->get_term_id_for_post( $post->ID, $taxonomy );
+
+			if ( $term_id && term_exists( $term_id, $taxonomy ) ) {
+				wp_delete_term( $term_id, $taxonomy );
+			}
+		}
+	}
+
+	/**
+	 * Updates a post's synced terms in its other mapped taxonomies.
+	 *
+	 * A term change updates its post with is_syncing set, so the post's own save
+	 * handler skips. This brings the post's other terms along.
+	 *
+	 * @param int    $post_id          Post ID.
+	 * @param string $except_taxonomy  Taxonomy the change came from.
+	 *
+	 * @return void
+	 */
+	protected function sync_other_taxonomies( int $post_id, string $except_taxonomy ): void {
+		$post = get_post( $post_id );
+
+		if ( ! $post || 'publish' !== $post->post_status ) {
 			return;
 		}
 
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
-
-		if ( $term_id && term_exists( $term_id, $taxonomy ) ) {
-			$this->is_syncing = true;
-			wp_delete_term( $term_id, $taxonomy );
-			$this->is_syncing = false;
+		foreach ( vgptts()->get_taxonomies_for_post_type( $post->post_type ) as $taxonomy ) {
+			if ( $taxonomy !== $except_taxonomy ) {
+				$this->upsert_term_for_post( $post, $taxonomy );
+			}
 		}
 	}
 
@@ -354,6 +397,7 @@ class Sync {
 			$args = apply_filters( 'vgptts_synced_post_args', $args, $term, $post_type );
 
 			wp_update_post( $args );
+			$this->sync_other_taxonomies( $post_id, $taxonomy );
 		} else {
 			// Create a new post and link both directions.
 			$args = [
@@ -370,8 +414,9 @@ class Sync {
 			$post_id = wp_insert_post( $args );
 
 			if ( $post_id && ! is_wp_error( $post_id ) ) {
-				update_post_meta( $post_id, Core::POST_META_KEY, $term_id );
+				update_post_meta( $post_id, vgptts()->get_post_meta_key( $taxonomy ), $term_id );
 				update_term_meta( $term_id, Core::TERM_META_KEY, $post_id );
+				$this->sync_other_taxonomies( (int) $post_id, $taxonomy );
 			}
 		}
 
@@ -398,9 +443,11 @@ class Sync {
 		}
 
 		$post_id = (int) get_term_meta( $term_id, Core::TERM_META_KEY, true );
+		$post    = $post_id ? get_post( $post_id ) : null;
 
-		if ( $post_id && get_post( $post_id ) ) {
+		if ( $post ) {
 			$this->is_syncing = true;
+			$this->delete_terms_for_post( $post, $taxonomy );
 			wp_delete_post( $post_id, true );
 			$this->is_syncing = false;
 		}
@@ -444,7 +491,7 @@ class Sync {
 			$this->upsert_term_for_post( $post, $taxonomy );
 		}
 
-		// 2. Remove terms that reference a missing, wrong-type, or trashed post.
+		// 2. Remove terms that reference a missing or wrong-type post. A trashed post keeps its term until it's deleted.
 		$terms = get_terms(
 			[
 				'taxonomy'   => $taxonomy,
@@ -461,7 +508,7 @@ class Sync {
 				}
 
 				$post = get_post( $post_id );
-				if ( ! $post || $post->post_type !== $post_type || 'trash' === $post->post_status ) {
+				if ( ! $post || $post->post_type !== $post_type ) {
 					wp_delete_term( $term_id, $taxonomy );
 				}
 			}

@@ -156,7 +156,7 @@ class AdminTest extends VGPTTS_TestCase {
 		);
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		set_current_screen( 'post' );
 		$_GET['post'] = $post_id;
@@ -183,7 +183,7 @@ class AdminTest extends VGPTTS_TestCase {
 		);
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$_SERVER['HTTP_REFERER'] = admin_url( "post.php?post={$post_id}&action=edit" );
 		$request                 = new WP_REST_Request( 'GET', '/wp/v2/tags' );
