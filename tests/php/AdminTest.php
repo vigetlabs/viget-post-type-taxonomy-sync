@@ -47,7 +47,7 @@ class AdminTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * get_synced_taxonomies_for_post_type() returns only taxonomies mapped to the given post type.
+	 * get_synced_taxonomies_for_post_type() returns the synced taxonomies the post type has, wherever they're mapped.
 	 */
 	public function test_get_synced_taxonomies_for_post_type() {
 		$this->set_mappings(
@@ -63,7 +63,8 @@ class AdminTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertSame( [ 'post_tag' ], $this->call_admin_method( 'get_synced_taxonomies_for_post_type', [ 'post' ] ) );
+		$this->assertSame( [ 'category', 'post_tag' ], $this->call_admin_method( 'get_synced_taxonomies_for_post_type', [ 'post' ] ) );
+		$this->assertSame( [], $this->call_admin_method( 'get_synced_taxonomies_for_post_type', [ 'page' ] ) );
 		$this->assertSame( [], $this->call_admin_method( 'get_synced_taxonomies_for_post_type', [ 'attachment' ] ) );
 	}
 
@@ -229,5 +230,27 @@ class AdminTest extends VGPTTS_TestCase {
 
 		$this->assertNotContains( 'https://api.w.org/action-create-tags', $links );
 		$this->assertContains( 'https://api.w.org/action-create-categories', $links );
+	}
+
+	/**
+	 * The link is removed on the post types a synced taxonomy is on, not just the one it syncs with.
+	 */
+	public function test_remove_create_term_link_on_tagged_post_types() {
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+
+		wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
+		do_action( 'rest_api_init', rest_get_server() );
+
+		$links = $this->get_post_links( self::factory()->post->create() );
+
+		$this->assertNotContains( 'https://api.w.org/action-create-categories', $links );
+		$this->assertContains( 'https://api.w.org/action-create-tags', $links );
 	}
 }

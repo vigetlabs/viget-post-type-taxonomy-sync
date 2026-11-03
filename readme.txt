@@ -47,6 +47,7 @@ Viget Post Type Taxonomy Sync keeps a post type mirrored in one or more taxonomi
 * A trashed or unpublished post keeps its term and relationships until it's deleted permanently, so restoring it brings them back. While it isn't published, its term is hidden from the editor's term lists (unless a post already has it) and the post is left out of `get_related_post_ids_for_post()`. The Sync button no longer deletes a trashed post's term. Added `Core::get_unpublished_term_ids()`.
 * A mapping added with `vgptts_registered_mappings` inside an `init` callback now syncs. Before, it showed on the settings page but its posts never synced.
 * A registered mapping from a hierarchical post type to a non-hierarchical taxonomy shows as synced without hierarchy, and its Sync button works. A registered mapping whose post type isn't registered says it still reserves its taxonomy.
+* "Add New" is hidden for a synced taxonomy on every post type it's on, not only the one it syncs with, in the block editor and the classic meta box.
 
 = 2.1.1 =
 * Removing a saved mapping shows a dismissible admin notice confirming which mapping was removed.

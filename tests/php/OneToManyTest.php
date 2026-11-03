@@ -222,7 +222,7 @@ class OneToManyTest extends VGPTTS_TestCase {
 
 		$method = new ReflectionMethod( Admin::class, 'get_synced_taxonomies_for_post_type' );
 		$method->setAccessible( true );
-		$this->assertSame( [ 'post_tag', 'category' ], $method->invoke( $admin, 'post' ) );
+		$this->assertEqualsCanonicalizing( [ 'post_tag', 'category' ], $method->invoke( $admin, 'post' ) );
 
 		set_current_screen( 'post' );
 		$_GET['post'] = $post_id;
