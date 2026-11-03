@@ -141,7 +141,7 @@ class CoreTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * A saved mapping sharing a post type or taxonomy with a registered mapping is dropped.
+	 * A saved mapping sharing a taxonomy with a registered mapping is dropped. Sharing a post type is fine.
 	 */
 	public function test_registered_mapping_overrides_saved_mapping() {
 		$this->set_mappings(
@@ -174,6 +174,10 @@ class CoreTest extends VGPTTS_TestCase {
 				[
 					'post_type' => 'page',
 					'taxonomy'  => 'category',
+				],
+				[
+					'post_type' => 'page',
+					'taxonomy'  => 'post_tag',
 				],
 				[
 					'post_type' => 'post',
@@ -258,7 +262,7 @@ class CoreTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * is_overridden() matches on either side of a registered mapping.
+	 * is_overridden() matches a registered mapping's taxonomy, not its post type.
 	 */
 	public function test_is_overridden() {
 		$registered = [
@@ -268,7 +272,7 @@ class CoreTest extends VGPTTS_TestCase {
 			],
 		];
 
-		$this->assertTrue(
+		$this->assertFalse(
 			vgptts()->is_overridden(
 				[
 					'post_type' => 'post',
@@ -340,9 +344,9 @@ class CoreTest extends VGPTTS_TestCase {
 	}
 
 	/**
-	 * A post type can only sync to one taxonomy, so a second registered mapping for it is flagged.
+	 * A post type can sync to several taxonomies, so registered mappings can share one.
 	 */
-	public function test_registered_mapping_sharing_post_type_is_flagged() {
+	public function test_registered_mappings_can_share_a_post_type() {
 		$this->set_registered_mappings(
 			[
 				[
@@ -356,8 +360,35 @@ class CoreTest extends VGPTTS_TestCase {
 			]
 		);
 
-		$this->assertCount( 1, vgptts()->get_mappings() );
-		$this->assertSame( 'post_tag', vgptts()->get_flagged_mappings()[0]['taxonomy'] );
+		$this->assertCount( 2, vgptts()->get_mappings() );
+		$this->assertSame( [], vgptts()->get_flagged_mappings() );
+		$this->assertSame( [ 'category', 'post_tag' ], vgptts()->get_taxonomies_for_post_type( 'post' ) );
+		$this->assertSame( 'category', vgptts()->get_taxonomy_for_post_type( 'post' ) );
+	}
+
+	/**
+	 * Saved mappings can share a post type too, alongside a registered one.
+	 */
+	public function test_saved_mapping_can_share_a_registered_post_type() {
+		$this->set_registered_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'category',
+				],
+			]
+		);
+		$this->set_mappings(
+			[
+				[
+					'post_type' => 'post',
+					'taxonomy'  => 'post_tag',
+				],
+			]
+		);
+
+		$this->assertSame( [ 'category', 'post_tag' ], vgptts()->get_taxonomies_for_post_type( 'post' ) );
+		$this->assertSame( [], vgptts()->get_flagged_mappings() );
 	}
 
 	/**
@@ -415,7 +446,7 @@ class CoreTest extends VGPTTS_TestCase {
 		);
 
 		$other_post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$other_term_id = (int) get_post_meta( $other_post_id, Core::POST_META_KEY, true );
+		$other_term_id = (int) get_post_meta( $other_post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
 		wp_set_post_terms( $post_id, [ $other_term_id ], 'post_tag' );
@@ -449,7 +480,7 @@ class CoreTest extends VGPTTS_TestCase {
 		);
 
 		$post_id = self::factory()->post->create( [ 'post_status' => 'publish' ] );
-		$term_id = (int) get_post_meta( $post_id, Core::POST_META_KEY, true );
+		$term_id = (int) get_post_meta( $post_id, vgptts()->get_post_meta_key( 'post_tag' ), true );
 
 		$this->assertSame( $post_id, vgptts()->get_post_id_for_term( $term_id ) );
 	}

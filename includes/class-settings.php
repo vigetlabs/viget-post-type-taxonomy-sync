@@ -180,32 +180,25 @@ class Settings {
 				continue;
 			}
 
-			// A post type and a taxonomy can each sync once.
+			// A taxonomy syncs to one post type. A post type can sync to several taxonomies.
 			$conflict = vgptts()->find_conflict( $pair, $sanitized['mappings'] );
 			if ( $conflict ) {
 				add_settings_error(
 					self::OPTION_NAME,
 					"vgptts_conflict_{$post_type}_{$taxonomy}",
 					sprintf(
-						/* translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug */
-						__( 'Mapping "%1$s" to "%2$s" was not saved. "%3$s" to "%4$s" already uses that post type or taxonomy.', 'viget-post-type-taxonomy-sync' ),
+						/* translators: 1: post type slug, 2: taxonomy slug, 3: post type slug the taxonomy already syncs with */
+						__( 'Mapping "%1$s" to "%2$s" was not saved. "%2$s" already syncs with "%3$s".', 'viget-post-type-taxonomy-sync' ),
 						$post_type,
 						$taxonomy,
-						$conflict['post_type'],
-						$conflict['taxonomy']
+						$conflict['post_type']
 					),
 					'error'
 				);
 				continue;
 			}
 
-			$post_type_obj = get_post_type_object( $post_type );
-			$tax_obj       = get_taxonomy( $taxonomy );
-
-			$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
-			$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
-
-			if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+			if ( self::is_hierarchy_mismatch( $post_type, $taxonomy ) ) {
 				add_settings_error(
 					self::OPTION_NAME,
 					"vgptts_hierarchy_mismatch_{$post_type}_{$taxonomy}",
@@ -295,13 +288,13 @@ class Settings {
 			wp_send_json_error( [ 'message' => __( 'Invalid post type or taxonomy.', 'viget-post-type-taxonomy-sync' ) ], 400 );
 		}
 
-		$post_type_obj = get_post_type_object( $post_type );
-		$tax_obj       = get_taxonomy( $taxonomy );
+		$pair = [
+			'post_type' => $post_type,
+			'taxonomy'  => $taxonomy,
+		];
 
-		$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
-		$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
-
-		if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+		// Registered mappings sync without hierarchy, the same as on save.
+		if ( self::is_hierarchy_mismatch( $post_type, $taxonomy ) && ! \in_array( $pair, vgptts()->get_registered_mappings(), true ) ) {
 			wp_send_json_error(
 				[
 					'message' => __( 'Cannot sync a hierarchical post type to a non-hierarchical taxonomy. Choose a hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' ),
@@ -396,7 +389,7 @@ class Settings {
 	}
 
 	/**
-	 * Gets registered mappings for the settings page, each with a `note` saying why it isn't synced, or null.
+	 * Gets registered mappings for the settings page, each with `synced` and a `note` explaining its status, or null.
 	 *
 	 * @param array|null $flagged Flagged mappings. Defaults to vgptts()->get_flagged_mappings().
 	 *
@@ -407,7 +400,12 @@ class Settings {
 		$rows    = [];
 
 		foreach ( vgptts()->get_registered_mappings() as $mapping ) {
-			$rows[] = $mapping + [ 'note' => self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping ) ];
+			$note = self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping );
+
+			$rows[] = $mapping + [
+				'note'   => $note ?? self::get_hierarchy_note( $mapping ),
+				'synced' => null === $note,
+			];
 		}
 
 		return $rows;
@@ -428,13 +426,11 @@ class Settings {
 				continue;
 			}
 
-			$shares_taxonomy = $flag['conflict']['taxonomy'] === $mapping['taxonomy'];
-
 			return sprintf(
-				/* translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with */
+				/* translators: 1: taxonomy name, 2: the post type it already syncs with */
 				__( 'Not synced: %1$s already syncs with %2$s.', 'viget-post-type-taxonomy-sync' ),
-				$shares_taxonomy ? self::get_taxonomy_label( $mapping['taxonomy'] ) : self::get_post_type_label( $mapping['post_type'] ),
-				$shares_taxonomy ? self::get_post_type_label( $flag['conflict']['post_type'] ) : self::get_taxonomy_label( $flag['conflict']['taxonomy'] )
+				self::get_taxonomy_label( $mapping['taxonomy'] ),
+				self::get_post_type_label( $flag['conflict']['post_type'] )
 			);
 		}
 
@@ -455,8 +451,12 @@ class Settings {
 		$tax_obj       = get_taxonomy( $mapping['taxonomy'] );
 
 		if ( ! $post_type_obj ) {
-			/* translators: %s: post type slug */
-			return sprintf( __( 'Not synced: the "%s" post type is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['post_type'] );
+			return sprintf(
+				/* translators: 1: post type slug, 2: taxonomy slug */
+				__( 'Not synced: the "%1$s" post type is not registered. "%2$s" stays reserved for it.', 'viget-post-type-taxonomy-sync' ),
+				$mapping['post_type'],
+				$mapping['taxonomy']
+			);
 		}
 
 		if ( ! $tax_obj ) {
@@ -464,11 +464,41 @@ class Settings {
 			return sprintf( __( 'Not synced: the "%s" taxonomy is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['taxonomy'] );
 		}
 
-		if ( $post_type_obj->hierarchical && ! $tax_obj->hierarchical ) {
-			return __( 'Not synced: a hierarchical post type cannot sync to a non-hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' );
+		return null;
+	}
+
+	/**
+	 * Gets the note for a registered hierarchical post type synced to a non-hierarchical taxonomy, or null.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string|null
+	 */
+	private static function get_hierarchy_note( array $mapping ): ?string {
+		if ( ! self::is_hierarchy_mismatch( $mapping['post_type'], $mapping['taxonomy'] ) ) {
+			return null;
 		}
 
-		return null;
+		return sprintf(
+			/* translators: %s: taxonomy name */
+			__( 'Synced without hierarchy: %s is not hierarchical, so names and slugs sync but parents do not.', 'viget-post-type-taxonomy-sync' ),
+			self::get_taxonomy_label( $mapping['taxonomy'] )
+		);
+	}
+
+	/**
+	 * Whether a hierarchical post type is mapped to a non-hierarchical taxonomy.
+	 *
+	 * @param string $post_type Post type slug.
+	 * @param string $taxonomy  Taxonomy slug.
+	 *
+	 * @return bool
+	 */
+	private static function is_hierarchy_mismatch( string $post_type, string $taxonomy ): bool {
+		$post_type_obj = get_post_type_object( $post_type );
+		$tax_obj       = get_taxonomy( $taxonomy );
+
+		return ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) ) && ( $tax_obj && empty( $tax_obj->hierarchical ) );
 	}
 
 	/**

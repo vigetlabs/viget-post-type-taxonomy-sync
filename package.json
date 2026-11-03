@@ -1,6 +1,6 @@
 {
   "name": "viget-post-type-taxonomy-sync",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Keeps selected post types and taxonomies in sync, storing related IDs in post and term meta.",
   "author": "Viget",
   "license": "GPL-2.0-or-later",
@@ -31,8 +31,8 @@
     "release": "npm version"
   },
   "devDependencies": {
-    "@wordpress/env": "^11.15.0",
-    "@wordpress/scripts": "^35.0.0",
+    "@wordpress/env": "^12.0.0",
+    "@wordpress/scripts": "^37.0.0",
     "typescript": "^6.0.3",
     "webpack-remove-empty-scripts": "^1.1.1"
   }
