@@ -13,8 +13,7 @@ use Viget\PostTypeTaxonomySync\Core;
 abstract class VGPTTS_TestCase extends WP_UnitTestCase {
 
 	/**
-	 * Sets the plugin's mappings option and re-registers Sync's dynamic hooks
-	 * so the new mappings take effect within the same request/test.
+	 * Sets the plugin's mappings option.
 	 *
 	 * @param array $mappings Array of ['post_type' => ..., 'taxonomy' => ...] pairs.
 	 *
@@ -22,12 +21,10 @@ abstract class VGPTTS_TestCase extends WP_UnitTestCase {
 	 */
 	protected function set_mappings( array $mappings ): void {
 		update_option( Core::OPTION_NAME, [ 'mappings' => $mappings ] );
-		vgptts()->sync->register_hooks();
 	}
 
 	/**
-	 * Registers mappings in code through vgptts_registered_mappings and
-	 * re-registers Sync's dynamic hooks.
+	 * Registers mappings in code through vgptts_registered_mappings.
 	 *
 	 * @param array $mappings Array of ['post_type' => ..., 'taxonomy' => ...] pairs.
 	 *
@@ -39,7 +36,6 @@ abstract class VGPTTS_TestCase extends WP_UnitTestCase {
 			'vgptts_registered_mappings',
 			static fn( array $registered ): array => array_merge( $registered, $mappings )
 		);
-		vgptts()->sync->register_hooks();
 	}
 
 	/**

@@ -55,46 +55,19 @@ class Sync {
 	 * @return void
 	 */
 	private function init() {
-		add_action( 'init', [ $this, 'register_hooks' ] );
+		$this->register_hooks();
 	}
 
 	/**
-	 * Registers dynamic hooks for selected post types and taxonomies.
+	 * Registers the sync hooks.
+	 *
+	 * Handlers look up mappings on each change, so a mapping registered on `init` or later still syncs.
 	 *
 	 * @return void
 	 */
 	public function register_hooks() {
-		$mappings = vgptts()->get_mappings();
-
-		if ( empty( $mappings ) ) {
-			return;
-		}
-
-		$registered_post_types = [];
-		$has_valid_mapping     = false;
-
-		foreach ( $mappings as $mapping ) {
-			$post_type = isset( $mapping['post_type'] ) ? $mapping['post_type'] : '';
-			$taxonomy  = isset( $mapping['taxonomy'] ) ? $mapping['taxonomy'] : '';
-
-			// No existence check: this runs before themes register on `init`. Handlers validate.
-			if ( ! $post_type || ! $taxonomy ) {
-				continue;
-			}
-
-			$has_valid_mapping = true;
-
-			if ( ! isset( $registered_post_types[ $post_type ] ) ) {
-				$registered_post_types[ $post_type ] = true;
-
-				// Sync when a post is saved.
-				add_action( "save_post_{$post_type}", [ $this, 'handle_post_save' ], 10, 3 );
-			}
-		}
-
-		if ( ! $has_valid_mapping ) {
-			return;
-		}
+		// Sync when a post is saved.
+		add_action( 'save_post', [ $this, 'handle_post_save' ], 10, 3 );
 
 		// Sync when a post is deleted.
 		add_action( 'before_delete_post', [ $this, 'handle_post_delete' ] );

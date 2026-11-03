@@ -33,9 +33,9 @@ $vgptts_registered_note = __( 'Registered in code', 'viget-post-type-taxonomy-sy
 	<?php foreach ( $registered as $mapping ) : ?>
 		<?php
 		$vgptts_tip  = $mapping['note'] ?? $vgptts_registered_note;
-		$vgptts_icon = $mapping['note'] ? 'dashicons-no-alt' : 'dashicons-lock';
+		$vgptts_icon = $mapping['synced'] ? 'dashicons-lock' : 'dashicons-no-alt';
 		?>
-		<tr class="vgptts-row-registered<?php echo $mapping['note'] ? ' vgptts-row-flagged' : ''; ?>" data-post-type="<?php echo esc_attr( $mapping['post_type'] ); ?>" data-taxonomy="<?php echo esc_attr( $mapping['taxonomy'] ); ?>">
+		<tr class="vgptts-row-registered<?php echo $mapping['synced'] ? '' : ' vgptts-row-flagged'; ?>" data-post-type="<?php echo esc_attr( $mapping['post_type'] ); ?>" data-taxonomy="<?php echo esc_attr( $mapping['taxonomy'] ); ?>">
 			<td>
 				<span class="vgptts-mapping-label"><?php echo esc_html( Settings::get_post_type_label( $mapping['post_type'] ) ); ?> (<?php echo esc_html( $mapping['post_type'] ); ?>)</span>
 			</td>
@@ -43,7 +43,7 @@ $vgptts_registered_note = __( 'Registered in code', 'viget-post-type-taxonomy-sy
 				<span class="vgptts-mapping-label"><?php echo esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ); ?> (<?php echo esc_html( $mapping['taxonomy'] ); ?>)</span>
 			</td>
 			<td class="vgptts-actions-cell">
-				<?php if ( ! $mapping['note'] ) : ?>
+				<?php if ( $mapping['synced'] ) : ?>
 					<button type="button" class="button vgptts-sync-row" data-post-type="<?php echo esc_attr( $mapping['post_type'] ); ?>" data-taxonomy="<?php echo esc_attr( $mapping['taxonomy'] ); ?>">
 						<span class="vgptts-sync-label"><?php esc_html_e( 'Sync', 'viget-post-type-taxonomy-sync' ); ?></span>
 						<span class="vgptts-sync-spinner" aria-hidden="true"></span>
