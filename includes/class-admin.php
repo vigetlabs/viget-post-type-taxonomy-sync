@@ -471,7 +471,7 @@ class Admin {
 	}
 
 	/**
-	 * Shows an error for each paused mapping, and a dismissible warning for each mapping that syncs without parents.
+	 * Shows one error listing paused mappings, and one dismissible warning listing mappings that sync without parents.
 	 *
 	 * @return void
 	 */
@@ -480,78 +480,125 @@ class Admin {
 			return;
 		}
 
-		$settings_link = sprintf(
-			'<a href="%s">%s</a>',
-			esc_url( admin_url( 'options-general.php?page=' . Settings::PAGE_SLUG ) ),
-			esc_html__( 'Post/Tax Sync settings', 'viget-post-type-taxonomy-sync' )
+		$paused = vgptts()->get_paused_mappings();
+
+		if ( $paused ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p>%s</div>',
+				wp_kses_post(
+					sprintf(
+						/* translators: %s: settings page link */
+						__( '<strong>Post Type Taxonomy Sync:</strong> these mappings are paused because the post type is hierarchical and the taxonomy is not. Make the taxonomy hierarchical, or remove the mapping in %s.', 'viget-post-type-taxonomy-sync' ),
+						sprintf(
+							'<a href="%s">%s</a>',
+							esc_url( admin_url( 'options-general.php?page=' . Settings::PAGE_SLUG ) ),
+							esc_html__( 'Post/Tax Sync settings', 'viget-post-type-taxonomy-sync' )
+						)
+					)
+				),
+				self::get_mapping_list( $paused ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in get_mapping_list().
+			);
+		}
+
+		$dismissed = $this->prune_dismissed_warnings( get_current_user_id() );
+		$warnings  = array_values(
+			array_filter(
+				vgptts()->get_hierarchy_warnings(),
+				static fn( array $mapping ): bool => ! \in_array( self::get_warning_key( $mapping ), $dismissed, true )
+			)
 		);
 
-		foreach ( vgptts()->get_paused_mappings() as $mapping ) {
-			printf(
-				'<div class="notice notice-error"><p>%s</p></div>',
-				wp_kses_post(
-					sprintf(
-						/* translators: 1: post type name, 2: taxonomy name, 3: settings page link */
-						__( '<strong>Post Type Taxonomy Sync:</strong> syncing %1$s with %2$s is paused. %1$s is hierarchical but %2$s is not. Make %2$s hierarchical, or remove the mapping in %3$s.', 'viget-post-type-taxonomy-sync' ),
-						esc_html( Settings::get_post_type_label( $mapping['post_type'] ) ),
-						esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ),
-						$settings_link
-					)
-				)
-			);
+		if ( ! $warnings ) {
+			return;
 		}
 
-		$user_id   = get_current_user_id();
+		printf(
+			'<div class="notice notice-warning is-dismissible vgptts-hierarchy-warning" data-keys="%s" data-nonce="%s"><p>%s</p>%s</div>',
+			esc_attr( implode( ',', array_map( [ self::class, 'get_warning_key' ], $warnings ) ) ),
+			esc_attr( wp_create_nonce( 'vgptts_dismiss_hierarchy_warning' ) ),
+			wp_kses_post( __( '<strong>Post Type Taxonomy Sync:</strong> these taxonomies are hierarchical but their post types are not. Syncing still works, but parent/child relationships won\'t sync.', 'viget-post-type-taxonomy-sync' ) ),
+			self::get_mapping_list( $warnings ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in get_mapping_list().
+		);
+
+		wp_print_inline_script_tag(
+			"document.addEventListener( 'click', function ( event ) {
+				var button = event.target.closest( '.vgptts-hierarchy-warning .notice-dismiss' );
+				if ( ! button ) {
+					return;
+				}
+				var notice = button.closest( '.vgptts-hierarchy-warning' );
+				var body = new URLSearchParams( { action: 'vgptts_dismiss_hierarchy_warning', keys: notice.dataset.keys, nonce: notice.dataset.nonce } );
+				window.fetch( window.ajaxurl, { method: 'POST', credentials: 'same-origin', body: body } );
+			} );"
+		);
+	}
+
+	/**
+	 * Forgets a user's dismissed warnings whose mapping was removed or now matches, and returns the rest.
+	 *
+	 * A mapping whose post type or taxonomy isn't registered on this request keeps its dismissal.
+	 *
+	 * @param int $user_id User ID.
+	 *
+	 * @return string[]
+	 */
+	private function prune_dismissed_warnings( int $user_id ): array {
 		$dismissed = array_values( array_filter( (array) get_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, true ) ) );
-		$keys      = [];
+		$mappings  = [];
 
-		foreach ( vgptts()->get_hierarchy_warnings() as $mapping ) {
-			$key    = self::get_warning_key( $mapping );
-			$keys[] = $key;
-
-			if ( \in_array( $key, $dismissed, true ) ) {
-				continue;
-			}
-
-			printf(
-				'<div class="notice notice-warning is-dismissible vgptts-hierarchy-warning" data-key="%s" data-nonce="%s"><p>%s</p></div>',
-				esc_attr( $key ),
-				esc_attr( wp_create_nonce( 'vgptts_dismiss_hierarchy_warning' ) ),
-				wp_kses_post(
-					sprintf(
-						/* translators: 1: taxonomy name, 2: post type name */
-						__( '<strong>Post Type Taxonomy Sync:</strong> %1$s is hierarchical but %2$s is not. Syncing still works, but parent/child relationships won\'t sync.', 'viget-post-type-taxonomy-sync' ),
-						esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ),
-						esc_html( Settings::get_post_type_label( $mapping['post_type'] ) )
-					)
-				)
-			);
+		foreach ( vgptts()->get_mappings() as $mapping ) {
+			$mappings[ self::get_warning_key( $mapping ) ] = $mapping;
 		}
 
-		// Forget dismissals for mappings that match again, so the warning returns if they drift apart later.
-		$remaining = array_values( array_intersect( $dismissed, $keys ) );
+		$remaining = array_values(
+			array_filter(
+				$dismissed,
+				static function ( $key ) use ( $mappings ): bool {
+					$mapping = $mappings[ $key ] ?? null;
+
+					if ( ! $mapping ) {
+						return false;
+					}
+
+					$registered = post_type_exists( $mapping['post_type'] ) && taxonomy_exists( $mapping['taxonomy'] );
+
+					return ! $registered || Core::HIERARCHY_WARNING === vgptts()->get_hierarchy_status( $mapping );
+				}
+			)
+		);
 
 		if ( $remaining !== $dismissed ) {
 			update_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, $remaining );
 		}
 
-		if ( \count( $keys ) > \count( $remaining ) ) {
-			wp_print_inline_script_tag(
-				"document.addEventListener( 'click', function ( event ) {
-					var button = event.target.closest( '.vgptts-hierarchy-warning .notice-dismiss' );
-					if ( ! button ) {
-						return;
-					}
-					var notice = button.closest( '.vgptts-hierarchy-warning' );
-					var body = new URLSearchParams( { action: 'vgptts_dismiss_hierarchy_warning', key: notice.dataset.key, nonce: notice.dataset.nonce } );
-					window.fetch( window.ajaxurl, { method: 'POST', credentials: 'same-origin', body: body } );
-				} );"
-			);
-		}
+		return $remaining;
 	}
 
 	/**
-	 * Remembers that the current user dismissed a hierarchy warning.
+	 * Gets an escaped list of mappings for a notice.
+	 *
+	 * @param array $mappings Mappings with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string
+	 */
+	private static function get_mapping_list( array $mappings ): string {
+		$items = '';
+
+		foreach ( $mappings as $mapping ) {
+			$items .= sprintf(
+				'<li>%s (%s) &rarr; %s (%s)</li>',
+				esc_html( Settings::get_post_type_label( $mapping['post_type'] ) ),
+				esc_html( $mapping['post_type'] ),
+				esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ),
+				esc_html( $mapping['taxonomy'] )
+			);
+		}
+
+		return '<ul class="ul-disc">' . $items . '</ul>';
+	}
+
+	/**
+	 * Remembers that the current user dismissed the hierarchy warning for the mappings it listed.
 	 *
 	 * @return void
 	 */
@@ -562,19 +609,20 @@ class Admin {
 			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'viget-post-type-taxonomy-sync' ) ], 403 );
 		}
 
-		$key = isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '';
+		$keys    = isset( $_POST['keys'] ) ? explode( ',', sanitize_text_field( wp_unslash( $_POST['keys'] ) ) ) : [];
+		$current = array_map( [ self::class, 'get_warning_key' ], vgptts()->get_hierarchy_warnings() );
 
-		if ( ! $key ) {
+		// Only current warnings, so the stored list can't grow past the mappings themselves.
+		$keys = array_intersect( $keys, $current );
+
+		if ( ! $keys ) {
 			wp_send_json_error( [ 'message' => __( 'Missing warning.', 'viget-post-type-taxonomy-sync' ) ], 400 );
 		}
 
 		$user_id   = get_current_user_id();
 		$dismissed = array_filter( (array) get_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, true ) );
 
-		if ( ! \in_array( $key, $dismissed, true ) ) {
-			$dismissed[] = $key;
-			update_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, array_values( $dismissed ) );
-		}
+		update_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, array_values( array_unique( array_merge( $dismissed, $keys ) ) ) );
 
 		wp_send_json_success();
 	}

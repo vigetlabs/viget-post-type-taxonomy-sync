@@ -199,8 +199,77 @@ class HierarchyTest extends VGPTTS_TestCase {
 
 		$output = $this->render_notices();
 
-		$this->assertMatchesRegularExpression( '/class="notice notice-error"><p><strong>Post Type Taxonomy Sync:<\/strong> syncing Page with Tag is paused/', $output );
-		$this->assertStringContainsString( 'notice-warning is-dismissible vgptts-hierarchy-warning" data-key="post:category"', $output );
+		$this->assertStringContainsString( '<div class="notice notice-error"><p><strong>Post Type Taxonomy Sync:</strong> these mappings are paused', $output );
+		$this->assertStringContainsString( '<li>Page (page) &rarr; Tag (post_tag)</li>', $output );
+		$this->assertStringContainsString( 'notice-warning is-dismissible vgptts-hierarchy-warning" data-keys="post:category"', $output );
+		$this->assertStringContainsString( '<li>Post (post) &rarr; Category (category)</li>', $output );
+	}
+
+	/**
+	 * Several mismatched mappings share one error and one warning, with one dismiss script.
+	 */
+	public function test_notices_are_consolidated() {
+		register_taxonomy( 'vgptts_flip', 'post', [ 'hierarchical' => true ] );
+		register_post_type( 'vgptts_flat', [ 'hierarchical' => false ] );
+		register_post_type( 'vgptts_tree', [ 'hierarchical' => true ] );
+		$this->set_registered_mappings(
+			[
+				self::PAUSED,
+				[
+					'post_type' => 'vgptts_tree',
+					'taxonomy'  => 'post_format',
+				],
+			]
+		);
+		$this->set_mappings(
+			[
+				self::WARNING,
+				[
+					'post_type' => 'vgptts_flat',
+					'taxonomy'  => 'vgptts_flip',
+				],
+			]
+		);
+
+		$output = $this->render_notices();
+
+		$this->assertSame( 1, substr_count( $output, 'notice-error' ) );
+		$this->assertSame( 1, substr_count( $output, 'notice-warning' ) );
+		$this->assertSame( 1, substr_count( $output, '<script' ) );
+		$this->assertStringContainsString( 'data-keys="post:category,vgptts_flat:vgptts_flip"', $output );
+
+		_unregister_post_type( 'vgptts_flat' );
+		_unregister_post_type( 'vgptts_tree' );
+	}
+
+	/**
+	 * Once dismissed, the warning only comes back for a mapping that wasn't dismissed.
+	 */
+	public function test_dismissed_warning_only_returns_for_new_mappings() {
+		register_post_type( 'vgptts_flat', [ 'hierarchical' => false ] );
+		register_taxonomy( 'vgptts_flip', 'vgptts_flat', [ 'hierarchical' => true ] );
+		$this->set_mappings( [ self::WARNING ] );
+		update_user_meta( get_current_user_id(), Admin::DISMISSED_WARNINGS_META_KEY, [ 'post:category' ] );
+
+		$this->assertSame( '', $this->render_notices() );
+		$this->assertSame( '', $this->render_notices() );
+
+		$this->set_mappings(
+			[
+				self::WARNING,
+				[
+					'post_type' => 'vgptts_flat',
+					'taxonomy'  => 'vgptts_flip',
+				],
+			]
+		);
+
+		$output = $this->render_notices();
+
+		$this->assertStringContainsString( 'data-keys="vgptts_flat:vgptts_flip"', $output );
+		$this->assertStringNotContainsString( 'Post (post) &rarr; Category (category)', $output );
+
+		_unregister_post_type( 'vgptts_flat' );
 	}
 
 	/**
@@ -223,6 +292,29 @@ class HierarchyTest extends VGPTTS_TestCase {
 		register_taxonomy( 'vgptts_flip', 'post', [ 'hierarchical' => true ] );
 
 		$this->assertStringContainsString( 'vgptts-hierarchy-warning', $this->render_notices() );
+	}
+
+	/**
+	 * A dismissal survives a request where the taxonomy isn't registered, and is forgotten when the mapping is removed.
+	 */
+	public function test_dismissal_kept_while_unregistered_and_dropped_when_removed() {
+		$mapping = [
+			'post_type' => 'post',
+			'taxonomy'  => 'vgptts_flip',
+		];
+
+		$this->set_mappings( [ $mapping ] );
+		update_user_meta( get_current_user_id(), Admin::DISMISSED_WARNINGS_META_KEY, [ 'post:vgptts_flip' ] );
+
+		$this->render_notices();
+		register_taxonomy( 'vgptts_flip', 'post', [ 'hierarchical' => true ] );
+
+		$this->assertSame( '', $this->render_notices() );
+
+		$this->set_mappings( [] );
+		$this->render_notices();
+
+		$this->assertSame( [], get_user_meta( get_current_user_id(), Admin::DISMISSED_WARNINGS_META_KEY, true ) );
 	}
 
 	/**
