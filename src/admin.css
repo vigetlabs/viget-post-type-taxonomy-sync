@@ -28,13 +28,16 @@ span.dashicons.vgptts-registered-icon {
 	color: #8c8f94;
 }
 
-.vgptts-row-flagged .vgptts-mapping-label {
+.vgptts-row-flagged .vgptts-mapping-label,
+.vgptts-row-paused .vgptts-mapping-label {
 	color: #646970;
 	text-decoration: line-through;
 }
 
 .vgptts-row-flagged .vgptts-registered-icon,
-.vgptts-row-flagged .vgptts-registered-icon .dashicons {
+.vgptts-row-flagged .vgptts-registered-icon .dashicons,
+.vgptts-row-paused .vgptts-registered-icon,
+.vgptts-row-paused .vgptts-registered-icon .dashicons {
 	color: #b32d2e;
 }
 
@@ -56,6 +59,7 @@ span.dashicons.vgptts-registered-icon {
 }
 
 .vgptts-row-overridden .vgptts-row-note,
+.vgptts-row-paused .vgptts-row-note,
 .vgptts-row-note.vgptts-remove-error {
 	color: #b32d2e;
 }
@@ -84,4 +88,8 @@ span.dashicons.vgptts-registered-icon {
 	to {
 		transform: rotate(360deg);
 	}
+}
+
+.vgptts-row-paused.vgptts-row-saved td:not(.vgptts-actions-cell) {
+	color: #646970;
 }

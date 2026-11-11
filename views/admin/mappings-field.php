@@ -32,10 +32,18 @@ $vgptts_registered_note = __( 'Registered in code', 'viget-post-type-taxonomy-sy
 	<tbody>
 	<?php foreach ( $registered as $mapping ) : ?>
 		<?php
-		$vgptts_tip  = $mapping['note'] ?? $vgptts_registered_note;
-		$vgptts_icon = $mapping['note'] ? 'dashicons-no-alt' : 'dashicons-lock';
+		$vgptts_tip   = $mapping['note'] ?? $vgptts_registered_note;
+		$vgptts_icon  = $mapping['note'] ? 'dashicons-no-alt' : 'dashicons-lock';
+		$vgptts_class = '';
+
+		if ( $mapping['paused'] ) {
+			$vgptts_icon  = 'dashicons-controls-pause';
+			$vgptts_class = ' vgptts-row-paused';
+		} elseif ( $mapping['note'] ) {
+			$vgptts_class = ' vgptts-row-flagged';
+		}
 		?>
-		<tr class="vgptts-row-registered<?php echo $mapping['note'] ? ' vgptts-row-flagged' : ''; ?>" data-post-type="<?php echo esc_attr( $mapping['post_type'] ); ?>" data-taxonomy="<?php echo esc_attr( $mapping['taxonomy'] ); ?>">
+		<tr class="vgptts-row-registered<?php echo esc_attr( $vgptts_class ); ?>" data-post-type="<?php echo esc_attr( $mapping['post_type'] ); ?>" data-taxonomy="<?php echo esc_attr( $mapping['taxonomy'] ); ?>">
 			<td>
 				<span class="vgptts-mapping-label"><?php echo esc_html( Settings::get_post_type_label( $mapping['post_type'] ) ); ?> (<?php echo esc_html( $mapping['post_type'] ); ?>)</span>
 			</td>
@@ -82,14 +90,27 @@ $vgptts_registered_note = __( 'Registered in code', 'viget-post-type-taxonomy-sy
 			$flagged
 		) : null;
 		$overridden = null !== $note;
+		$paused     = $has_both && ! $overridden ? Settings::get_paused_note(
+			[
+				'post_type' => sanitize_key( $pt ),
+				'taxonomy'  => sanitize_key( $tax ),
+			]
+		) : null;
+		$note       = $note ?? $paused;
 		$row_class  = $has_both ? 'vgptts-row-saved' : 'vgptts-row-unsaved';
+
+		if ( $overridden ) {
+			$row_class .= ' vgptts-row-overridden';
+		} elseif ( $paused ) {
+			$row_class .= ' vgptts-row-paused';
+		}
 		?>
-		<tr class="<?php echo esc_attr( $row_class . ( $overridden ? ' vgptts-row-overridden' : '' ) ); ?>" data-post-type="<?php echo esc_attr( $pt ); ?>" data-taxonomy="<?php echo esc_attr( $tax ); ?>">
+		<tr class="<?php echo esc_attr( $row_class ); ?>" data-post-type="<?php echo esc_attr( $pt ); ?>" data-taxonomy="<?php echo esc_attr( $tax ); ?>">
 			<td>
 				<?php if ( $has_both ) : ?>
 					<?php echo esc_html( Settings::get_post_type_label( $pt ) ); ?> (<?php echo esc_html( $pt ); ?>)
 					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION_NAME ); ?>[mappings][<?php echo esc_attr( (string) $index ); ?>][post_type]" value="<?php echo esc_attr( $pt ); ?>">
-					<?php if ( $overridden ) : ?>
+					<?php if ( $note ) : ?>
 						<span class="vgptts-row-note"><?php echo esc_html( $note ); ?></span>
 					<?php endif; ?>
 				<?php else : ?>
@@ -119,7 +140,7 @@ $vgptts_registered_note = __( 'Registered in code', 'viget-post-type-taxonomy-sy
 				<?php endif; ?>
 			</td>
 			<td class="vgptts-actions-cell">
-				<?php if ( $has_both && ! $overridden ) : ?>
+				<?php if ( $has_both && ! $note ) : ?>
 					<button type="button" class="button vgptts-sync-row" data-post-type="<?php echo esc_attr( $pt ); ?>" data-taxonomy="<?php echo esc_attr( $tax ); ?>">
 						<span class="vgptts-sync-label"><?php esc_html_e( 'Sync', 'viget-post-type-taxonomy-sync' ); ?></span>
 						<span class="vgptts-sync-spinner" aria-hidden="true"></span>

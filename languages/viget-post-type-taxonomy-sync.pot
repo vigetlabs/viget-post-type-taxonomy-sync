@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Viget Post Type Taxonomy Sync 2.0.2\n"
+"Project-Id-Version: Viget Post Type Taxonomy Sync 2.1.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/viget-post-type-taxonomy-sync\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-01T20:45:39+00:00\n"
+"POT-Creation-Date: 2026-11-11T01:44:04+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: viget-post-type-taxonomy-sync\n"
@@ -39,8 +39,34 @@ msgstr ""
 msgid "https://www.viget.com/"
 msgstr ""
 
-#: includes/class-admin.php:277
+#: includes/class-admin.php:284
 msgid "This taxonomy is managed automatically and does not allow adding new terms here."
+msgstr ""
+
+#: includes/class-admin.php:486
+msgid "Post/Tax Sync settings"
+msgstr ""
+
+#. translators: 1: post type name, 2: taxonomy name, 3: settings page link
+#: includes/class-admin.php:495
+#, php-format
+msgid "<strong>Post Type Taxonomy Sync:</strong> syncing %1$s with %2$s is paused. %1$s is hierarchical but %2$s is not. Make %2$s hierarchical, or remove the mapping in %3$s."
+msgstr ""
+
+#. translators: 1: taxonomy name, 2: post type name
+#: includes/class-admin.php:523
+#, php-format
+msgid "<strong>Post Type Taxonomy Sync:</strong> %1$s is hierarchical but %2$s is not. Syncing still works, but parent/child relationships won't sync."
+msgstr ""
+
+#: includes/class-admin.php:562
+#: includes/class-settings.php:283
+#: includes/class-settings.php:321
+msgid "Permission denied."
+msgstr ""
+
+#: includes/class-admin.php:568
+msgid "Missing warning."
 msgstr ""
 
 #: includes/class-github-plugin-updater.php:237
@@ -80,88 +106,135 @@ msgstr ""
 msgid "This term does not have a synced post."
 msgstr ""
 
-#: includes/class-settings.php:128
+#: includes/class-settings.php:129
 msgid "Sync Mappings"
 msgstr ""
 
-#: includes/class-settings.php:135
+#: includes/class-settings.php:136
 msgid "Mappings"
 msgstr ""
 
+#. translators: 1: post type slug, 2: taxonomy slug, 3: conflicting post type slug, 4: conflicting taxonomy slug
+#: includes/class-settings.php:192
+#, php-format
+msgid "Mapping \"%1$s\" to \"%2$s\" was not saved. \"%3$s\" to \"%4$s\" already uses that post type or taxonomy."
+msgstr ""
+
 #. translators: 1: post type slug, 2: taxonomy slug
-#: includes/class-settings.php:196
+#: includes/class-settings.php:210
 #, php-format
 msgid "Cannot sync hierarchical post type \"%1$s\" to non-hierarchical taxonomy \"%2$s\". Please choose a hierarchical taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:221
+#: includes/class-settings.php:232
 #: views/admin/settings.php:15
 msgid "Post Type Taxonomy Sync"
 msgstr ""
 
-#: includes/class-settings.php:222
+#: includes/class-settings.php:233
 msgid "Post/Tax Sync"
 msgstr ""
 
-#: includes/class-settings.php:269
-msgid "Permission denied."
+#: includes/class-settings.php:266
+msgid "Remove this mapping? Synced posts and terms are kept, but they stop syncing."
 msgstr ""
 
-#: includes/class-settings.php:276
+#: includes/class-settings.php:267
+msgid "The mapping could not be removed. Reload the page and try again."
+msgstr ""
+
+#: includes/class-settings.php:290
 msgid "Invalid post type or taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:288
+#: includes/class-settings.php:301
 msgid "Cannot sync a hierarchical post type to a non-hierarchical taxonomy. Choose a hierarchical taxonomy."
 msgstr ""
 
-#: includes/class-settings.php:296
+#: includes/class-settings.php:309
 msgid "Sync completed."
+msgstr ""
+
+#: includes/class-settings.php:337
+msgid "Mapping not found."
+msgstr ""
+
+#: includes/class-settings.php:342
+msgid "Mapping removed."
+msgstr ""
+
+#. translators: 1: post type or taxonomy name, 2: the taxonomy or post type it already syncs with
+#: includes/class-settings.php:426
+#, php-format
+msgid "Not synced: %1$s already syncs with %2$s."
+msgstr ""
+
+#. translators: %s: post type slug
+#: includes/class-settings.php:450
+#, php-format
+msgid "Not synced: the \"%s\" post type is not registered."
+msgstr ""
+
+#. translators: %s: taxonomy slug
+#: includes/class-settings.php:455
+#, php-format
+msgid "Not synced: the \"%s\" taxonomy is not registered."
+msgstr ""
+
+#. translators: 1: post type name, 2: taxonomy name
+#: includes/class-settings.php:475
+#, php-format
+msgid "Paused: %1$s is hierarchical but %2$s is not. Make %2$s hierarchical to resume syncing."
 msgstr ""
 
 #: includes/helpers.php:37
 msgid "PTTS() is deprecated; use vgptts() instead."
 msgstr ""
 
-#: views/admin/mappings-field.php:20
+#: views/admin/mappings-field.php:21
 msgid "Registered in code"
 msgstr ""
 
-#: views/admin/mappings-field.php:36
+#: views/admin/mappings-field.php:26
 msgid "Post Type"
 msgstr ""
 
-#: views/admin/mappings-field.php:37
+#: views/admin/mappings-field.php:27
 msgid "Taxonomy"
 msgstr ""
 
-#: views/admin/mappings-field.php:38
+#: views/admin/mappings-field.php:28
 msgid "Actions"
 msgstr ""
 
-#: views/admin/mappings-field.php:68
-#: views/admin/mappings-field.php:125
+#: views/admin/mappings-field.php:29
+msgid "Status"
+msgstr ""
+
+#: views/admin/mappings-field.php:56
+#: views/admin/mappings-field.php:145
 msgid "Sync"
 msgstr ""
 
-#: views/admin/mappings-field.php:94
-msgid "Not synced: a mapping registered in code uses this post type or taxonomy."
-msgstr ""
-
-#: views/admin/mappings-field.php:98
-#: views/admin/mappings-field.php:138
+#: views/admin/mappings-field.php:118
+#: views/admin/mappings-field.php:165
 msgid "Select post type"
 msgstr ""
 
-#: views/admin/mappings-field.php:113
-#: views/admin/mappings-field.php:146
+#: views/admin/mappings-field.php:133
+#: views/admin/mappings-field.php:173
 msgid "Select taxonomy"
 msgstr ""
 
-#: views/admin/mappings-field.php:130
+#: views/admin/mappings-field.php:150
 msgid "Remove"
 msgstr ""
 
-#: views/admin/mappings-field.php:158
+#: views/admin/mappings-field.php:155
+#: views/admin/mappings-field.php:181
+msgid "Remove unsaved mapping"
+msgstr ""
+
+#: views/admin/mappings-field.php:190
 msgid "Add Mapping"
 msgstr ""

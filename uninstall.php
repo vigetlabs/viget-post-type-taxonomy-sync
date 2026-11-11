@@ -16,3 +16,4 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 
 delete_option( 'vgptts_settings' );
 delete_site_option( 'vgptts_settings' );
+delete_metadata( 'user', 0, 'vgptts_dismissed_hierarchy_warnings', '', true );

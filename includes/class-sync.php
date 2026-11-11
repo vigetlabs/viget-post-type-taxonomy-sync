@@ -423,6 +423,15 @@ class Sync {
 			return;
 		}
 
+		$mapping = [
+			'post_type' => $post_type,
+			'taxonomy'  => $taxonomy,
+		];
+
+		if ( Core::HIERARCHY_PAUSED === vgptts()->get_hierarchy_status( $mapping ) ) {
+			return;
+		}
+
 		$this->is_syncing = true;
 
 		// 1. Sync published posts only (create or update terms).

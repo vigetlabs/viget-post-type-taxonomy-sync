@@ -15,6 +15,11 @@ namespace Viget\PostTypeTaxonomySync;
 class Admin {
 
 	/**
+	 * User meta key for dismissed hierarchy warnings.
+	 */
+	const DISMISSED_WARNINGS_META_KEY = 'vgptts_dismissed_hierarchy_warnings';
+
+	/**
 	 * Instance of this class.
 	 *
 	 * @var Admin|null
@@ -58,6 +63,8 @@ class Admin {
 		add_action( 'enqueue_block_editor_assets', [ $this, 'maybe_hide_block_editor_add_term_ui' ] );
 		add_action( 'wp_ajax_add-tag', [ $this, 'maybe_block_ajax_add_tag_for_synced_taxonomy' ], 0 );
 		add_filter( 'get_terms_args', [ $this, 'exclude_synced_term_from_terms_list' ], 10, 2 );
+		add_action( 'admin_notices', [ $this, 'render_hierarchy_notices' ] );
+		add_action( 'wp_ajax_vgptts_dismiss_hierarchy_warning', [ $this, 'handle_ajax_dismiss_hierarchy_warning' ] );
 	}
 
 	/**
@@ -461,5 +468,125 @@ class Admin {
 		$args['exclude'] = array_unique( array_filter( $exclude ) );
 
 		return $args;
+	}
+
+	/**
+	 * Shows an error for each paused mapping, and a dismissible warning for each mapping that syncs without parents.
+	 *
+	 * @return void
+	 */
+	public function render_hierarchy_notices(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$settings_link = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( admin_url( 'options-general.php?page=' . Settings::PAGE_SLUG ) ),
+			esc_html__( 'Post/Tax Sync settings', 'viget-post-type-taxonomy-sync' )
+		);
+
+		foreach ( vgptts()->get_paused_mappings() as $mapping ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				wp_kses_post(
+					sprintf(
+						/* translators: 1: post type name, 2: taxonomy name, 3: settings page link */
+						__( '<strong>Post Type Taxonomy Sync:</strong> syncing %1$s with %2$s is paused. %1$s is hierarchical but %2$s is not. Make %2$s hierarchical, or remove the mapping in %3$s.', 'viget-post-type-taxonomy-sync' ),
+						esc_html( Settings::get_post_type_label( $mapping['post_type'] ) ),
+						esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ),
+						$settings_link
+					)
+				)
+			);
+		}
+
+		$user_id   = get_current_user_id();
+		$dismissed = array_values( array_filter( (array) get_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, true ) ) );
+		$keys      = [];
+
+		foreach ( vgptts()->get_hierarchy_warnings() as $mapping ) {
+			$key    = self::get_warning_key( $mapping );
+			$keys[] = $key;
+
+			if ( \in_array( $key, $dismissed, true ) ) {
+				continue;
+			}
+
+			printf(
+				'<div class="notice notice-warning is-dismissible vgptts-hierarchy-warning" data-key="%s" data-nonce="%s"><p>%s</p></div>',
+				esc_attr( $key ),
+				esc_attr( wp_create_nonce( 'vgptts_dismiss_hierarchy_warning' ) ),
+				wp_kses_post(
+					sprintf(
+						/* translators: 1: taxonomy name, 2: post type name */
+						__( '<strong>Post Type Taxonomy Sync:</strong> %1$s is hierarchical but %2$s is not. Syncing still works, but parent/child relationships won\'t sync.', 'viget-post-type-taxonomy-sync' ),
+						esc_html( Settings::get_taxonomy_label( $mapping['taxonomy'] ) ),
+						esc_html( Settings::get_post_type_label( $mapping['post_type'] ) )
+					)
+				)
+			);
+		}
+
+		// Forget dismissals for mappings that match again, so the warning returns if they drift apart later.
+		$remaining = array_values( array_intersect( $dismissed, $keys ) );
+
+		if ( $remaining !== $dismissed ) {
+			update_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, $remaining );
+		}
+
+		if ( \count( $keys ) > \count( $remaining ) ) {
+			wp_print_inline_script_tag(
+				"document.addEventListener( 'click', function ( event ) {
+					var button = event.target.closest( '.vgptts-hierarchy-warning .notice-dismiss' );
+					if ( ! button ) {
+						return;
+					}
+					var notice = button.closest( '.vgptts-hierarchy-warning' );
+					var body = new URLSearchParams( { action: 'vgptts_dismiss_hierarchy_warning', key: notice.dataset.key, nonce: notice.dataset.nonce } );
+					window.fetch( window.ajaxurl, { method: 'POST', credentials: 'same-origin', body: body } );
+				} );"
+			);
+		}
+	}
+
+	/**
+	 * Remembers that the current user dismissed a hierarchy warning.
+	 *
+	 * @return void
+	 */
+	public function handle_ajax_dismiss_hierarchy_warning(): void {
+		check_ajax_referer( 'vgptts_dismiss_hierarchy_warning', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'viget-post-type-taxonomy-sync' ) ], 403 );
+		}
+
+		$key = isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '';
+
+		if ( ! $key ) {
+			wp_send_json_error( [ 'message' => __( 'Missing warning.', 'viget-post-type-taxonomy-sync' ) ], 400 );
+		}
+
+		$user_id   = get_current_user_id();
+		$dismissed = array_filter( (array) get_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, true ) );
+
+		if ( ! \in_array( $key, $dismissed, true ) ) {
+			$dismissed[] = $key;
+			update_user_meta( $user_id, self::DISMISSED_WARNINGS_META_KEY, array_values( $dismissed ) );
+		}
+
+		wp_send_json_success();
+	}
+
+	/**
+	 * Gets the key a hierarchy warning is dismissed under.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string
+	 */
+	public static function get_warning_key( array $mapping ): string {
+		return $mapping['post_type'] . ':' . $mapping['taxonomy'];
 	}
 }

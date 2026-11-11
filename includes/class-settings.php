@@ -157,6 +157,7 @@ class Settings {
 		}
 
 		$registered = vgptts()->get_registered_mappings();
+		$saved      = vgptts()->get_saved_mappings();
 
 		foreach ( $input['mappings'] as $mapping ) {
 			if ( empty( $mapping['post_type'] ) || empty( $mapping['taxonomy'] ) ) {
@@ -199,13 +200,8 @@ class Settings {
 				continue;
 			}
 
-			$post_type_obj = get_post_type_object( $post_type );
-			$tax_obj       = get_taxonomy( $taxonomy );
-
-			$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
-			$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
-
-			if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+			// A saved mapping that became paused stays until it's fixed or removed.
+			if ( Core::HIERARCHY_PAUSED === vgptts()->get_hierarchy_status( $pair ) && ! \in_array( $pair, $saved, true ) ) {
 				add_settings_error(
 					self::OPTION_NAME,
 					"vgptts_hierarchy_mismatch_{$post_type}_{$taxonomy}",
@@ -294,13 +290,12 @@ class Settings {
 			wp_send_json_error( [ 'message' => __( 'Invalid post type or taxonomy.', 'viget-post-type-taxonomy-sync' ) ], 400 );
 		}
 
-		$post_type_obj = get_post_type_object( $post_type );
-		$tax_obj       = get_taxonomy( $taxonomy );
+		$pair = [
+			'post_type' => $post_type,
+			'taxonomy'  => $taxonomy,
+		];
 
-		$post_type_is_hierarchical = ( $post_type_obj && ! empty( $post_type_obj->hierarchical ) );
-		$tax_is_hierarchical       = ( $tax_obj && ! empty( $tax_obj->hierarchical ) );
-
-		if ( $post_type_is_hierarchical && ! $tax_is_hierarchical ) {
+		if ( Core::HIERARCHY_PAUSED === vgptts()->get_hierarchy_status( $pair ) ) {
 			wp_send_json_error(
 				[
 					'message' => __( 'Cannot sync a hierarchical post type to a non-hierarchical taxonomy. Choose a hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' ),
@@ -386,7 +381,7 @@ class Settings {
 	}
 
 	/**
-	 * Gets registered mappings for the settings page, each with a `note` saying why it isn't synced, or null.
+	 * Gets registered mappings for the settings page, each with a `note` saying why it isn't synced, or null, and whether it's `paused`.
 	 *
 	 * @param array|null $flagged Flagged mappings. Defaults to vgptts()->get_flagged_mappings().
 	 *
@@ -397,7 +392,13 @@ class Settings {
 		$rows    = [];
 
 		foreach ( vgptts()->get_registered_mappings() as $mapping ) {
-			$rows[] = $mapping + [ 'note' => self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping ) ];
+			$flag_note = self::get_flag_note( $mapping, 'registered', $flagged ) ?? self::get_invalid_note( $mapping );
+			$paused    = null === $flag_note ? self::get_paused_note( $mapping ) : null;
+
+			$rows[] = $mapping + [
+				'note'   => $flag_note ?? $paused,
+				'paused' => null !== $paused,
+			];
 		}
 
 		return $rows;
@@ -454,11 +455,27 @@ class Settings {
 			return sprintf( __( 'Not synced: the "%s" taxonomy is not registered.', 'viget-post-type-taxonomy-sync' ), $mapping['taxonomy'] );
 		}
 
-		if ( $post_type_obj->hierarchical && ! $tax_obj->hierarchical ) {
-			return __( 'Not synced: a hierarchical post type cannot sync to a non-hierarchical taxonomy.', 'viget-post-type-taxonomy-sync' );
+		return null;
+	}
+
+	/**
+	 * Gets the note for a paused mapping, or null when it isn't paused.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string|null
+	 */
+	public static function get_paused_note( array $mapping ): ?string {
+		if ( Core::HIERARCHY_PAUSED !== vgptts()->get_hierarchy_status( $mapping ) ) {
+			return null;
 		}
 
-		return null;
+		return sprintf(
+			/* translators: 1: post type name, 2: taxonomy name */
+			__( 'Paused: %1$s is hierarchical but %2$s is not. Make %2$s hierarchical to resume syncing.', 'viget-post-type-taxonomy-sync' ),
+			self::get_post_type_label( $mapping['post_type'] ),
+			self::get_taxonomy_label( $mapping['taxonomy'] )
+		);
 	}
 
 	/**

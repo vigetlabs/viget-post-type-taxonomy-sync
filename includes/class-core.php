@@ -30,6 +30,16 @@ class Core {
 	const TERM_META_KEY = '_vgptts_post_id';
 
 	/**
+	 * Hierarchy status of a hierarchical post type mapped to a non-hierarchical taxonomy. It doesn't sync.
+	 */
+	const HIERARCHY_PAUSED = 'paused';
+
+	/**
+	 * Hierarchy status of a non-hierarchical post type mapped to a hierarchical taxonomy. It syncs, without parents.
+	 */
+	const HIERARCHY_WARNING = 'warning';
+
+	/**
 	 * Instance of this class.
 	 *
 	 * @var Core|null
@@ -111,10 +121,63 @@ class Core {
 	 *
 	 * A post type and a taxonomy can each sync once, so a mapping that reuses one
 	 * already claimed by an earlier mapping is left out. See get_flagged_mappings().
+	 * Paused mappings are left out too. See get_paused_mappings().
 	 *
 	 * @return array
 	 */
 	public function get_mappings() {
+		return array_values(
+			array_filter(
+				$this->get_filtered_mappings(),
+				fn( $mapping ): bool => self::HIERARCHY_PAUSED !== $this->get_hierarchy_status( $mapping )
+			)
+		);
+	}
+
+	/**
+	 * Gets mappings that are paused because a hierarchical post type maps to a non-hierarchical taxonomy.
+	 *
+	 * @return array
+	 */
+	public function get_paused_mappings(): array {
+		return $this->get_mappings_by_hierarchy_status( self::HIERARCHY_PAUSED );
+	}
+
+	/**
+	 * Gets mappings that sync, but where a non-hierarchical post type maps to a hierarchical taxonomy.
+	 *
+	 * @return array
+	 */
+	public function get_hierarchy_warnings(): array {
+		return $this->get_mappings_by_hierarchy_status( self::HIERARCHY_WARNING );
+	}
+
+	/**
+	 * Compares the hierarchical setting of a mapping's post type and taxonomy.
+	 *
+	 * Returns null when they match, or when either one isn't registered yet.
+	 *
+	 * @param array $mapping Mapping with `post_type` and `taxonomy` keys.
+	 *
+	 * @return string|null `paused`, `warning` or null.
+	 */
+	public function get_hierarchy_status( $mapping ): ?string {
+		$post_type_obj = get_post_type_object( $mapping['post_type'] ?? '' );
+		$tax_obj       = get_taxonomy( $mapping['taxonomy'] ?? '' );
+
+		if ( ! $post_type_obj || ! $tax_obj || (bool) $post_type_obj->hierarchical === (bool) $tax_obj->hierarchical ) {
+			return null;
+		}
+
+		return $post_type_obj->hierarchical ? self::HIERARCHY_PAUSED : self::HIERARCHY_WARNING;
+	}
+
+	/**
+	 * Gets active mappings, passed through vgptts_mappings, before paused mappings are removed.
+	 *
+	 * @return array
+	 */
+	private function get_filtered_mappings(): array {
 		$result = $this->resolve_mappings()['active'];
 
 		/**
@@ -122,7 +185,23 @@ class Core {
 		 *
 		 * @param array $result The sanitized mappings, each an array with `post_type` and `taxonomy` keys.
 		 */
-		return apply_filters( 'vgptts_mappings', $result );
+		return (array) apply_filters( 'vgptts_mappings', $result );
+	}
+
+	/**
+	 * Gets filtered mappings with the given hierarchy status.
+	 *
+	 * @param string $status `paused` or `warning`.
+	 *
+	 * @return array
+	 */
+	private function get_mappings_by_hierarchy_status( string $status ): array {
+		return array_values(
+			array_filter(
+				$this->get_filtered_mappings(),
+				fn( $mapping ): bool => $status === $this->get_hierarchy_status( $mapping )
+			)
+		);
 	}
 
 	/**

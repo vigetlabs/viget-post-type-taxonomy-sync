@@ -11,7 +11,7 @@ vgptts()->get_mappings();
 
 ### `get_mappings(): array`
 
-Returns every active mapping, each an array with `post_type` and `taxonomy` keys: mappings registered in code first, then mappings saved on the settings page. A post type and a taxonomy can each sync once, so a mapping that reuses one already claimed by an earlier mapping is left out (see `get_flagged_mappings()`). The result passes through the `vgptts_mappings` filter.
+Returns every active mapping, each an array with `post_type` and `taxonomy` keys: mappings registered in code first, then mappings saved on the settings page. A post type and a taxonomy can each sync once, so a mapping that reuses one already claimed by an earlier mapping is left out (see `get_flagged_mappings()`). The result passes through the `vgptts_mappings` filter, then paused mappings are left out (see `get_paused_mappings()`).
 
 ```php
 foreach ( vgptts()->get_mappings() as $mapping ) {
@@ -30,6 +30,18 @@ Returns the sanitized mappings saved on the settings page.
 ### `get_flagged_mappings(): array`
 
 Returns the mappings left out of `get_mappings()`, each with `post_type`, `taxonomy`, `source` (`registered` or `saved`) and `conflict`, the active mapping that claimed its post type or taxonomy first.
+
+### `get_paused_mappings(): array`
+
+Returns the mappings left out of `get_mappings()` because a hierarchical post type maps to a non-hierarchical taxonomy. Covers saved, registered and `vgptts_mappings` mappings, and is checked live, so a mapping pauses if either side is re-registered and resumes once they're fixed. Each paused mapping shows a non-dismissible admin error and a disabled row on the settings page until it's fixed or removed.
+
+### `get_hierarchy_warnings(): array`
+
+Returns the active mappings where a non-hierarchical post type maps to a hierarchical taxonomy. These sync, but parent/child relationships don't, and each one shows a dismissible admin warning.
+
+### `get_hierarchy_status( array $mapping ): ?string`
+
+Compares the `hierarchical` setting of a mapping's post type and taxonomy. Returns `Core::HIERARCHY_PAUSED` (`paused`) for a hierarchical post type to a non-hierarchical taxonomy, `Core::HIERARCHY_WARNING` (`warning`) for the reverse, or `null` when they match or either one isn't registered.
 
 ### `find_conflict( array $mapping, array $mappings ): ?array`
 
@@ -59,7 +71,7 @@ Returns the post ID linked to a given term via the sync, or `null` if the term i
 
 ### `sync_terms( string $post_type, string $taxonomy ): void`
 
-Runs a full reconciliation for one mapping: creates/updates a term for every published post of `$post_type`, and removes any term whose linked post is missing, trashed, or of the wrong type. This is what the settings page's per-row **Sync** button triggers via AJAX (`vgptts_sync_mapping`); call it directly for a WP-CLI command or a scheduled job.
+Runs a full reconciliation for one mapping: creates/updates a term for every published post of `$post_type`, and removes any term whose linked post is missing, trashed, or of the wrong type. This is what the settings page's per-row **Sync** button triggers via AJAX (`vgptts_sync_mapping`); call it directly for a WP-CLI command or a scheduled job. It does nothing for a paused mapping.
 
 ## REST API
 
@@ -91,7 +103,7 @@ Registers mappings in code, for a plugin or theme that owns both the post type a
 - show on the settings page as locked rows, with a **Sync** button and no way to edit or remove them;
 - take precedence over a saved mapping that uses the same post type or taxonomy. The saved row is flagged as not synced.
 
-A post type and a taxonomy can each sync once. A registered mapping that reuses one claimed by an earlier registered mapping, or that names a post type or taxonomy that isn't registered, shows as a flagged row: struck through, with an ✕ whose tooltip says why it isn't synced.
+A post type and a taxonomy can each sync once. A registered mapping that reuses one claimed by an earlier registered mapping, or that names a post type or taxonomy that isn't registered, shows as a flagged row: struck through, with an ✕ whose tooltip says why it isn't synced. A registered mapping from a hierarchical post type to a non-hierarchical taxonomy is paused, the same as a saved one (see `get_paused_mappings()`).
 
 ```php
 add_filter(
